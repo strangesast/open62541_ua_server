@@ -19,10 +19,13 @@ If build successful, **opcua-MTServer** should be generated in the current direc
 
 Usage:
 
-- opcua-MTServer **<MTConnect Agent URL address> [poll cycle in seconds - default is 60]**
+- opcua-MTServer **[MTConnect Agent URL address] [poll cycle in seconds - default is 60]**
+  
 Example:  opcua-MTServer https://smstestbed.nist.gov/vds
-  or
-- opcua-MTServer **<configuration file>**
+or
+
+- opcua-MTServer **[configuration file]**
+
 Example:  opcua-MTServer opcua.cfg
 opcua.cfg allows connections to multiple MTConnect Agents. Each line contains <agent's url> and its poll frequency in seconds.
 
