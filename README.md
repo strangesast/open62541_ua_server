@@ -21,7 +21,7 @@ Usage:
 
 - opcua-MTServer **[MTConnect Agent URL address] [poll cycle in seconds - default is 60]**
   
-Example:  opcua-MTServer https://smstestbed.nist.gov/vds
+Example:  opcua-MTServer https://smstestbed.nist.gov/vds/GFAgie01
 or
 
 - opcua-MTServer **[configuration file]**
