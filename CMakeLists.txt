@@ -8,7 +8,7 @@ IF (WIN32)
 ENDIF()
 
 project(opcua-MTServer)
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.10)
 FIND_PACKAGE(Boost REQUIRED COMPONENTS thread filesystem log)
 FIND_PACKAGE(OpenSSL REQUIRED)
 FIND_PACKAGE(open62541 REQUIRED)
