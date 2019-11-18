@@ -12,16 +12,17 @@ Building
 
 Then run these commands:
 
-- **cmake Makefiles.list**
-- **cmake --build . --target all**
+- **mkdir build && cd build**
+- **cmake ..**
+- **make**
 
 If build successful, **opcua-MTServer** should be generated in the current directory.
 
 Usage:
 
-- opcua-MTServer **[MTConnect Agent URL address] [poll cycle in seconds - default is 60]**
+- opcua-MTServer **[MTConnect Agent URL address] [poll cycle in seconds]**
   
-Example:  opcua-MTServer https://smstestbed.nist.gov/vds/GFAgie01
+Example:  opcua-MTServer https://smstestbed.nist.gov/vds/GFAgie01 60
 or
 
 - opcua-MTServer **[configuration file]**
