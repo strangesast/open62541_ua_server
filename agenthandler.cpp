@@ -18,12 +18,17 @@
 #include "settings.h"
 #include "mtconnect_ids.h"
 #include "mteuInfo.h"
+#include "util.h"
 
 namespace fs = boost::filesystem;
 
 agentHandler::agentHandler()
 {
     m_uaServer = NULL;
+}
+
+agentHandler::~agentHandler()
+{
 }
 
 void agentHandler::setup(UA_Server *uaServer, UA_NodeId topNode, int ns)
@@ -89,7 +94,7 @@ void agentHandler::setupMetaInfo(string deviceUUID, UA_NodeId &topNode, ptree &p
                         if (constraints.size() > 0)
                         {
                             UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-                            oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "Constraints");
+                            oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Constraints");
 
                             UA_NodeId constraintNode;
                             UA_Server_addObjectNode(m_uaServer,
@@ -116,10 +121,10 @@ void agentHandler::setupMetaInfo(string deviceUUID, UA_NodeId &topNode, ptree &p
                                     UA_Double value = atof(p->second.data().c_str());
 
                                     UA_Variant_setScalar(&mnAttr.value, &value, &UA_TYPES[UA_TYPES_DOUBLE]);
-                                    mnAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", key.c_str());
+                                    mnAttr.displayName = util::toUALocalizedText(key);
                                     UA_Server_addVariableNode(m_uaServer, UA_NODEID_NULL, constraintNode,
                                                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                                              UA_QUALIFIEDNAME_ALLOC(m_namespace, key.c_str()),
+                                                              util::toUAQualifiedName(m_namespace, key),
                                                               UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), mnAttr, NULL, NULL);
 
                                 }
@@ -133,7 +138,7 @@ void agentHandler::setupMetaInfo(string deviceUUID, UA_NodeId &topNode, ptree &p
 
                                 int i = 0;
                                 for (vector<string>::iterator q = values.begin(); q != values.end(); q++, i++)
-                                    data[i] = UA_STRING_ALLOC((*q).c_str());
+                                    data[i] = util::toUAString((*q));
 
                                 UA_VariableAttributes mnAttr = UA_VariableAttributes_default;
                                 mnAttr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRING);
@@ -176,11 +181,11 @@ void agentHandler::setupMetaInfo(string deviceUUID, UA_NodeId &topNode, ptree &p
                 }
 
                 UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-                oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", display.c_str());
+                oAttr.displayName = util::toUALocalizedText(display);
                 UA_Server_addObjectNode(m_uaServer, UA_NODEID_NULL,
                                         topNode,
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                        UA_QUALIFIEDNAME_ALLOC(m_namespace, display.c_str()),
+                                        util::toUAQualifiedName(m_namespace, display),
                                         nodeType,
                                         oAttr,
                                         NULL,
@@ -191,7 +196,7 @@ void agentHandler::setupMetaInfo(string deviceUUID, UA_NodeId &topNode, ptree &p
                     addProperty(nextId, "Name", name);
 
                 UA_String value;
-                value = UA_STRING_ALLOC(id.c_str());
+                value = util::toUAString(id);
                 UA_Server_writeObjectProperty_scalar(m_uaServer, nextId,
                                               UA_QUALIFIEDNAME(2, "XmlId"),
                                               &value, &UA_TYPES[UA_TYPES_STRING]);
@@ -208,12 +213,12 @@ void agentHandler::setupMetaInfo(string deviceUUID, UA_NodeId &topNode, ptree &p
         else
         {
             UA_VariableAttributes mnAttr = UA_VariableAttributes_default;
-            UA_String value = UA_STRING_ALLOC(p->second.data().c_str());
+            UA_String value = util::toUAString(p->second.data());
             UA_Variant_setScalar(&mnAttr.value, &value, &UA_TYPES[UA_TYPES_STRING]);
-            mnAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", display.c_str());
+            mnAttr.displayName = util::toUALocalizedText(display);
             UA_Server_addVariableNode(m_uaServer, UA_NODEID_NULL, topNode,
                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                      UA_QUALIFIEDNAME_ALLOC(m_namespace, display.c_str()),
+                                      util::toUAQualifiedName(m_namespace, display),
                                       UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), mnAttr, NULL, NULL);
         }
     }
@@ -248,28 +253,28 @@ void agentHandler::setProbeInfo(string probeXml)
 
         UA_NodeId deviceNodeId; /* get the nodeid assigned by the server */
         UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-        oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", deviceName.c_str());
+        oAttr.displayName = util::toUALocalizedText(deviceName);
 
         UA_Server_addObjectNode(m_uaServer, UA_NODEID_NUMERIC(m_namespace, 0),
                                 m_topNode,
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                UA_QUALIFIEDNAME_ALLOC(m_namespace, deviceName.c_str()),
+                                util::toUAQualifiedName(m_namespace, deviceName),
                                 UA_NODEID_NUMERIC(2, MT_MTDEVICETYPE),
                                 oAttr, NULL, &deviceNodeId);
 
 
         UA_String value;
-        value = UA_STRING_ALLOC(deviceId.c_str());
+        value = util::toUAString(deviceId);
         UA_Server_writeObjectProperty_scalar(m_uaServer, deviceNodeId,
                                       UA_QUALIFIEDNAME(2, "XmlId"),
                                       &value, &UA_TYPES[UA_TYPES_STRING]);
 
-        value = UA_STRING_ALLOC(deviceUUID.c_str());
+        value = util::toUAString(deviceUUID);
         UA_Server_writeObjectProperty_scalar(m_uaServer, deviceNodeId,
                                       UA_QUALIFIEDNAME(2, "Uuid"),
                                       &value, &UA_TYPES[UA_TYPES_STRING]);
 
-        value = UA_STRING_ALLOC(deviceName.c_str());
+        value = util::toUAString(deviceName);
         UA_Server_writeObjectProperty_scalar(m_uaServer, deviceNodeId,
                                       UA_QUALIFIEDNAME(2, "Name"),
                                       &value, &UA_TYPES[UA_TYPES_STRING]);
@@ -279,7 +284,7 @@ void agentHandler::setProbeInfo(string probeXml)
             UA_NodeId descriptionNodeId;
 
             ptree& deviceDescription = device.get_child("Description.<xmlattr>");
-            oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "Description");
+            oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Description");
             UA_Server_addObjectNode(m_uaServer, UA_NODEID_NUMERIC(m_namespace, 0),
                                     deviceNodeId,
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -351,6 +356,7 @@ bool agentHandler::process(string xmlText)
         istringstream iss;
         iss.str (m_xml);
 
+	m_ptree.clear();
         boost::property_tree::read_xml( iss, m_ptree );
     }
     catch (exception & e)
@@ -418,7 +424,7 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
 
         UA_VariableAttributes oAttr = UA_VariableAttributes_default;
         oAttr.valueRank = UA_VALUERANK_SCALAR;
-        oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", actualDisplayName.c_str());
+        oAttr.displayName = util::toUALocalizedText(actualDisplayName);
 
         UA_UInt32 eventClassID = eventNodeType.identifier.numeric;
         if (eventClassID == MT_MTSTRINGEVENTTYPE)
@@ -445,10 +451,10 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
         }
 
         UA_StatusCode statusCode = UA_Server_addVariableNode(m_uaServer,
-                                UA_NODEID_STRING_ALLOC(m_namespace, nodeIdentifier.c_str()),
+                                util::toUANodeId(m_namespace, nodeIdentifier),
                                 topNode,
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                UA_QUALIFIEDNAME_ALLOC(m_namespace, actualDisplayName.c_str()),
+                                util::toUAQualifiedName(m_namespace, actualDisplayName),
                                 eventNodeType,
                                 oAttr, NULL, &nextId);
 
@@ -473,15 +479,15 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
     else if (category.compare("CONDITION") == 0)
     {       
         UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-        oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", actualDisplayName.c_str());
+        oAttr.displayName = util::toUALocalizedText(actualDisplayName);
 
         m_fieldDataTypes.insert(pair<string, UA_NodeId>(nodeIdentifier, UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE)));
 
         UA_Server_addObjectNode(m_uaServer,
-                                UA_NODEID_STRING_ALLOC(m_namespace, nodeIdentifier.c_str()),
+                                util::toUANodeId(m_namespace, nodeIdentifier),
                                 topNode ,
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                UA_QUALIFIEDNAME_ALLOC(m_namespace, actualDisplayName.c_str()),
+                                util::toUAQualifiedName(m_namespace, actualDisplayName),
                                  UA_NODEID_NUMERIC(2, MT_MTCONDITIONTYPE),
                                 oAttr, NULL, &nextId);
 
@@ -502,7 +508,7 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
 
         UA_VariableAttributes oAttr = UA_VariableAttributes_default;
         oAttr.valueRank = UA_VALUERANK_SCALAR;
-        oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", actualDisplayName.c_str());
+        oAttr.displayName = util::toUALocalizedText(actualDisplayName);
 
         if (type.compare("PATH_POSITION") == 0)
         {
@@ -516,10 +522,10 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
 
 
         UA_StatusCode statusCode = UA_Server_addVariableNode(m_uaServer,
-                                UA_NODEID_STRING_ALLOC(m_namespace, nodeIdentifier.c_str()),
+                                util::toUANodeId(m_namespace, nodeIdentifier),
                                 topNode,
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                UA_QUALIFIEDNAME_ALLOC(m_namespace, actualDisplayName.c_str()),
+                                util::toUAQualifiedName(m_namespace, actualDisplayName),
                                 nodeType,
                                 oAttr, NULL, &nextId);
 
@@ -545,14 +551,16 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
         {
             UA_EUInformation euData;
 
-            EuInfo *euInfo = euStore[m["units"]];
-
-            if (euInfo)
+	    std::map<string, EuInfo>::iterator it = euStore.find(m["units"]);
+	
+	    if (it != euStore.end())
             {
+            	EuInfo *euInfo = &it->second;
+
                 euData.namespaceUri = UA_STRING("http://www.opcfoundation.org/UA/units/un/cefact");
                 euData.unitId = euInfo->m_unitId;
-                euData.displayName = UA_LOCALIZEDTEXT_ALLOC("", euInfo->m_displayName.c_str());
-                euData.description = UA_LOCALIZEDTEXT_ALLOC("", euInfo->m_description.c_str());
+                euData.displayName = util::toUALocalizedText(euInfo->m_displayName);
+                euData.description = util::toUALocalizedText(euInfo->m_description);
 
                 UA_Variant v;
                 UA_Variant_setScalar(&v, &euData, &UA_TYPES[UA_TYPES_EUINFORMATION]);
@@ -595,13 +603,13 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
 
 //cerr << type << endl;
 //cerr << id << endl;
-    value = UA_STRING_ALLOC(id.c_str());
+    value = util::toUAString(id);
     UA_Variant_setScalar(&v, &value, &UA_TYPES[UA_TYPES_STRING]);
 
     if (findChildId(nextId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(2, "XmlId"), &nodeId))
             UA_Server_writeValue(m_uaServer, nodeId, v);
 
-    value = UA_STRING_ALLOC(type.c_str());
+    value = util::toUAString(type);
     UA_Variant_setScalar(&v, &value, &UA_TYPES[UA_TYPES_STRING]);
     if (findChildId(nextId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(2, "MTTypeName"), &nodeId))
             UA_Server_writeValue(m_uaServer, nodeId, v);
@@ -614,8 +622,8 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
     const UA_DataType *dataType = UA_findDataType(&nodeTypeId);
 
     enumData.value = 0;
-    enumData.displayName = UA_LOCALIZEDTEXT_ALLOC("", "");
-    enumData.description = UA_LOCALIZEDTEXT_ALLOC("", category.c_str());
+    enumData.displayName = UA_LOCALIZEDTEXT("", "");
+    enumData.description = util::toUALocalizedText(category);
     UA_Server_writeObjectProperty_scalar(m_uaServer, nextId,
                                   UA_QUALIFIEDNAME(2, "Category"),
                                   &enumData,
@@ -640,6 +648,8 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
 
         if (enumLoaded == true)
             UA_Server_writeValue(m_uaServer, nodeId, enumValues);
+
+	UA_Variant_clear(&enumValues);
     }
 
     return nextId;
@@ -655,12 +665,12 @@ void agentHandler::setProperties(UA_NodeId &topNode, ptree &dataItem)
         UA_NodeId nextId;
 
         UA_VariableAttributes oAttr = UA_VariableAttributes_default;
-        oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", key.c_str());
+        oAttr.displayName = util::toUALocalizedText(key);
 
         UA_Server_addVariableNode(m_uaServer, UA_NODEID_NUMERIC(m_namespace, 0),
                                 topNode,
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                UA_QUALIFIEDNAME_ALLOC(m_namespace, key.c_str()),
+                                util::toUAQualifiedName(m_namespace, key),
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
                                 oAttr, NULL, &nextId);
 
@@ -692,7 +702,7 @@ bool agentHandler::isLeafNode(ptree::iterator &p)
 
 void agentHandler::writeData(string variable, string dateTime, string data)
 {
-    UA_NodeId nodeId = UA_NODEID_STRING_ALLOC(m_namespace, variable.c_str());
+    UA_NodeId nodeId = util::toUANodeId(m_namespace, variable);
 
     if (data.compare("UNAVAILABLE") == 0)
     {
@@ -755,7 +765,7 @@ void agentHandler::writeData(string variable, string dateTime, string data)
         break;
 
     case UA_NS0ID_STRING:
-        myString = UA_STRING_ALLOC(data.c_str());
+        myString = util::toUAString(data);
         UA_Variant_setScalar(&myVar, &myString, &UA_TYPES[UA_TYPES_STRING]);
         break;
 
@@ -769,7 +779,7 @@ void agentHandler::writeData(string variable, string dateTime, string data)
 
                 UA_Variant v;
 
-                myString = UA_STRING_ALLOC(data.c_str());
+                myString = util::toUAString(data);
                 UA_Variant_setScalar(&v, &myString, &UA_TYPES[UA_TYPES_STRING]);
 
                 if (findChildId(nodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(2, "ValueAsText"), &n))
@@ -785,13 +795,14 @@ void agentHandler::writeData(string variable, string dateTime, string data)
                 // treat it as string next time
                 m_fieldDataTypes[variable] = UA_NODEID_NUMERIC(0, UA_NS0ID_STRING);
         }
-        myString = UA_STRING_ALLOC(data.c_str());
+        myString = util::toUAString(data);
         UA_Variant_setScalar(&myVar, &myString, &UA_TYPES[UA_TYPES_STRING]);
         break;
     }
 
     struct tm tm;
     strptime(dateTime.c_str(), "%Y-%m-%dT%H:%M:%S", &tm);
+    tm.tm_isdst = -1;  
     time_t dt = mktime(&tm);
 
     unsigned long pos = dateTime.find_first_of(".");
@@ -844,7 +855,7 @@ bool agentHandler::writeNodeData(UA_NodeId &nodeId, string result)
     UA_Variant data;
     UA_Variant_init(&data);
 
-    UA_String value = UA_STRING_ALLOC(result.c_str());
+    UA_String value = util::toUAString(result);
 
     UA_Variant_setScalar(&data, &value, &UA_TYPES[UA_TYPES_STRING]);
 
@@ -913,7 +924,8 @@ void agentHandler::getEventTypes(UA_NodeId eventRootNode, UA_NodeId eventTypeNod
     for (int i=0; i<res.referencesSize; i++)
     {
         ref = &(res.references[i]);
-        results.insert(make_pair((const char *)ref->displayName.text.data, eventTypeNode));
+
+        results.insert(make_pair(util::toString(ref->displayName.text), eventTypeNode));
     }
 
   err:
@@ -928,15 +940,15 @@ UA_NodeId agentHandler::addProperty(UA_NodeId parentNode, string propertyName, s
     UA_VariableAttributes mnAttr = UA_VariableAttributes_default;
     mnAttr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRING);
 
-    UA_String data = UA_STRING_ALLOC(value.c_str());
+    UA_String data = util::toUAString(value);
     UA_Variant_setScalar(&mnAttr.value, &data, &UA_TYPES[UA_TYPES_STRING]);
 
-    mnAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", propertyName.c_str());
+    mnAttr.displayName = util::toUALocalizedText(propertyName);
     UA_Server_addVariableNode(m_uaServer,
                               UA_NODEID_NUMERIC(m_namespace, 0),
                               parentNode,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME_ALLOC(2, propertyName.c_str()),
+                              util::toUAQualifiedName(2, propertyName),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
                               mnAttr,
                               NULL,

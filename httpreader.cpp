@@ -85,6 +85,9 @@ bool HttpReader::connectSSL()
     // Perform the SSL handshake
     stream->handshake(ssl::stream_base::client);
 
+    if (m_stream)
+	delete m_stream;
+
     m_stream = (tcp::socket *)stream;
     return true;
 }

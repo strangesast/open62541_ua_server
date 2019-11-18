@@ -32,6 +32,8 @@ private:
 
 public:
     agentHandler();
+    ~agentHandler();
+
 
 private:
 
@@ -52,7 +54,6 @@ private:
     void addNotifier(UA_NodeId targetNode, UA_NodeId srcNode);
     void addNotifierToAll(vector<UA_NodeId> & nodePath);
     int updateDeviceData(const string &deviceName, const string &deviceUUID, const string &componentId, ptree &pt);
-
 
 public:
     void setup(UA_Server *uaServer, UA_NodeId topNode, int ns);

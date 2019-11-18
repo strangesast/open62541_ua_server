@@ -138,5 +138,7 @@ int main(int argc, char** argv) {
     UA_StatusCode retval = UA_Server_run(server, &running);
 
     UA_Server_delete(server);
+    if (bthread != nullptr)
+	delete bthread;
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

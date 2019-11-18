@@ -5,6 +5,7 @@
 
 #include "types_mgr.h"
 #include "mtconnect_ids.h"
+#include "util.h"
 
 int TypesMgr::m_namespace = 2;
 
@@ -62,9 +63,10 @@ bool TypesMgr::getDictionary(string typeName, UA_Variant &enumStrings)
 
     int i = 0;
     for (std::map<string,int>::iterator it = dict.begin(); it != dict.end(); it++, i++)
-        data[i] = UA_LOCALIZEDTEXT_ALLOC("en", it->first.c_str());
+        data[i] = UA_LOCALIZEDTEXT("en", (char*)it->first.c_str());
 
-    UA_Variant_setArray(&enumStrings, data, numEnumValues, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    UA_Variant_setArrayCopy(&enumStrings, data, numEnumValues, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    UA_free(data);
     return true;
 }
 
@@ -105,7 +107,7 @@ bool TypesMgr::loadDictionary(string key, UA_NodeId node)
     UA_LocalizedText *results = (UA_LocalizedText *)attr.data;
     for (int i=0; i<len; i++, results++)
     {
-        string data = (const char*)results->text.data;
+        string data = util::toString(results->text);
 
         dict.insert(std::pair<string, int>(data, i) );
     }
