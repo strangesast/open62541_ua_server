@@ -640,18 +640,15 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &parentNo
 #if 0
     UA_EnumValueType enumData;
 
-    UA_NodeId nodeTypeId = UA_NODEID_NUMERIC(2, typeId);
-    const UA_DataType *dataType = UA_findDataType(&nodeTypeId);
-
-    enumData.value = 0;
-    enumData.displayName = UA_LOCALIZEDTEXT("", "");
+    enumData.value = m_typesMgr.lookup("MTCategoryType", category);
+    enumData.displayName = util::toUALocalizedText(category);
     enumData.description = util::toUALocalizedText(category);
-    VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, nextId,
-                                  UA_QUALIFIEDNAME(2, "Category"),
-                                  &enumData,
-                                  &UA_TYPES[UA_TYPES_ENUMVALUETYPE]));
+    util::writeObject_scalar(m_uaServer, nextId,
+                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                             UA_QUALIFIEDNAME(2, "Category"),
+                             &enumData,
+                             &UA_TYPES[UA_TYPES_ENUMVALUETYPE]);
 #endif
-
 
     UA_Int32 dd = m_typesMgr.lookup("MTCategoryType", category);
 
@@ -979,7 +976,11 @@ void agentHandler::processConditionStream(string deviceName, string componentId,
 
     m_eventSequenceNums[variable] = sequence;
 
-    auto iter = m_eventNodes.find(variable);
+    string key = variable;
+    if (nativeCode.length() > 0)
+        key += "@" + nativeCode;
+
+    auto iter = m_eventNodes.find(key);
     if (iter == m_eventNodes.end())
     {
         if (VerifyReturn(UA_Server_createEvent(m_uaServer,
@@ -987,13 +988,18 @@ void agentHandler::processConditionStream(string deviceName, string componentId,
                                                      &eventNodeId)) == false)
             return;
 
-        m_eventNodes[variable] = eventNodeId;
+        m_eventNodes[key] = eventNodeId;
     }
     else
     {
         eventNodeId = iter->second;
     }
 
+    sendConditionEvent(eventNodeId, deviceName, componentId, variable, nativeCode, dateTime, state, message);
+}
+
+void agentHandler::sendConditionEvent(UA_NodeId &eventNodeId, string deviceName, string componentId, string variable, string nativeCode, string dateTime, string state, string message)
+{
     UA_DateTime eventTime = util::toUADateTime(dateTime);
     VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, eventNodeId, UA_QUALIFIEDNAME(0, "Time"),
                                          &eventTime, &UA_TYPES[UA_TYPES_DATETIME]));
@@ -1157,6 +1163,23 @@ void agentHandler::processConditionStream(string deviceName, string componentId,
     VerifyReturn(UA_Server_triggerEvent(m_uaServer, eventNodeId,
                                      nodeId,
                                      NULL, UA_FALSE));
+
+    if (state.compare("Normal") == 0 && nativeCode.length() == 0)
+    {
+        string key = variable + "@";
+
+        // Reset all the events that are associated with this condition variable if any to Normal
+        for (auto iter = m_eventNodes.begin(); iter != m_eventNodes.end(); iter++)
+        {
+            string k = iter->first;
+
+            if (k.compare(0, key.length(), key) == 0)
+            {
+                nativeCode = k.substr(key.length(), string::npos);
+                sendConditionEvent(iter->second, deviceName, componentId, variable, nativeCode, dateTime, state, message);
+            }
+        }
+    }
 }
 
 void agentHandler::updateData(string variable, string dateTime, string data, ptree& pt)

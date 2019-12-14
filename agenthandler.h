@@ -50,6 +50,7 @@ private:
     int processDeviceStreamData(const string &deviceName, const string &deviceUUID, const string &componentId, const string &levelName, ptree &pt);
     void processMessageStream(string deviceName, string componentId, string variable, string dateTime, string message, ptree& pt);
     void processConditionStream(string deviceName, string componentId, string variable, string dateTime, string state, string message, ptree& pt);
+    void sendConditionEvent(UA_NodeId &eventNodeId, string deviceName, string componentId, string variable, string nativeCode, string dateTime, string state, string message);
 
     void updateData(string variable, string dateTime, string data, ptree &pt);
     bool lookupChildNodeId(UA_NodeId &parentNode, UA_NodeId referenceType,
