@@ -9,6 +9,7 @@
 
 #include "types_mgr.h"
 #include "settings.h"
+#include "util.h"
 
 using namespace std;
 using boost::property_tree::ptree;
@@ -22,13 +23,18 @@ private:
 
     ptree m_ptree;
     string m_xml;
-    std::map<string, int> m_ids;
+    map<string, int> m_ids;
+    map<string, UA_Int16> m_lastSeverity;
+    map<string, string> m_eventSequenceNums;
+    map<string, string> m_messageSequenceNums;
+    map<string, UA_NodeId> m_eventNodes;
+    map<string, UA_NodeId> m_messageNodes;
+
+    map<string, UA_NodeId> m_eventTypes;
     map<string, UA_NodeId> m_fieldDataTypes;
 
     UA_UInt16 m_namespace;
     TypesMgr m_typesMgr;
-
-    map<string, UA_NodeId> m_eventTypes;
 
 public:
     agentHandler();
@@ -37,30 +43,36 @@ public:
 
 private:
 
-    void setupMetaInfo(string deviceUUID, UA_NodeId &topNode, ptree &ptree, string path, vector<UA_NodeId> &nodePath);
-
-    string getJSON_data(ptree &tree, string path);
-    bool isLeafNode(ptree::iterator &p);
-    UA_NodeId addDeviceDataItem(string deviceUUID, UA_NodeId &topNode, ptree &dataItem, bool appendName, string path, vector<UA_NodeId> &nodePath);
-
+    void processDeviceMetaInfo(string deviceUUID, UA_NodeId &topNode, ptree &ptree, string path, vector<UA_NodeId> &nodePath);
+    UA_NodeId addDeviceDataItem(string deviceUUID, UA_NodeId &topNode, ptree &dataItem, multiset<string> &appendName, string path, vector<UA_NodeId> &nodePath);
     void setProperties(UA_NodeId &topNode, ptree &dataItem);
-    void writeData(string variable, string dateTime, string data);
-    bool findChildId(UA_NodeId &parentNode, UA_NodeId referenceType,
+
+    int processDeviceStreamData(const string &deviceName, const string &deviceUUID, const string &componentId, const string &levelName, ptree &pt);
+    void processMessageStream(string deviceName, string componentId, string variable, string dateTime, string message, ptree& pt);
+    void processConditionStream(string deviceName, string componentId, string variable, string dateTime, string state, string message, ptree& pt);
+
+    void updateData(string variable, string dateTime, string data, ptree &pt);
+    bool lookupChildNodeId(UA_NodeId &parentNode, UA_NodeId referenceType,
                 const UA_QualifiedName targetName, UA_NodeId *result);
-    bool writeNodeData(UA_NodeId &nodeId, string result);
-    string toCamelCase(string &input);
+
     void getEventTypes(UA_NodeId eventRootnode, UA_NodeId eventTypeNode, map<string, UA_NodeId> &results);
-    UA_NodeId addProperty(UA_NodeId parentNode, string propertyName, string value);
-    void addNotifier(UA_NodeId targetNode, UA_NodeId srcNode);
+    UA_NodeId addCustomPropertyWithData(UA_NodeId parentNode, string propertyName, string value);
+    UA_NodeId addCustomProperty(UA_NodeId parentNode, string propertyName, UA_NodeId dataType);
+
+    void addNotifier(UA_NodeId targetNode, UA_NodeId srcNode, bool setSrcNotifier);
     void addNotifierToAll(vector<UA_NodeId> & nodePath);
-    int updateDeviceData(const string &deviceName, const string &deviceUUID, const string &componentId, ptree &pt);
+    void addMTClassReferences(UA_NodeId nextId, UA_UInt32 classParentId, string displayName, string subType);
+
+    void setMTTypeNameAndId(UA_NodeId &nextId, string type, string id);
+    void researchDisplayNames(ptree &pt, multiset<string> &appendBy);
 
 public:
     void setup(UA_Server *uaServer, UA_NodeId topNode, int ns);
-    void setProbeInfo(string probeXml);
-    bool process(string xmlText);
-    string getJSON_data(string path) { return getJSON_data(m_ptree, path); }
-    bool updateData();
+    void processProbeInfo(string probeXml);
+    bool parseStreamData(string xmlText);
+    bool processStreamData();
+
+    string getJSON_data(string path) { return util::getJSON_data(m_ptree, path); }
 };
 
 #endif // AGENTHANDLER_H

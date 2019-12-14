@@ -16,6 +16,11 @@ Worker::Worker()
     m_poll_count = 0;
 }
 
+Worker::~Worker()
+{
+    m_reader.close();
+}
+
 bool Worker::setup(UA_Server *uaServer, UA_NodeId topNode, Settings *settings, string outputLocation, string uri, string interval)
 {
     m_outputLocation = outputLocation;
@@ -64,7 +69,7 @@ bool Worker::setMetaInfo()
         return false;
     }
 
-    m_handler.setProbeInfo(probeXml);
+    m_handler.processProbeInfo(probeXml);
     m_reader.close();
     return true;
 }
@@ -96,7 +101,7 @@ void Worker::poll()
     }
 
     try {
-        m_handler.process(xmlData);
+        m_handler.parseStreamData(xmlData);
     }
     catch (exception & e)
     {
@@ -119,7 +124,7 @@ void Worker::poll()
         return;
     }
 
-    m_handler.updateData();
+    m_handler.processStreamData();
     m_next_sequence = sequence;
     std::cout << "========== { " << m_uri << " - updated " << m_poll_count << ", next sequence = " << m_next_sequence << " } ==========" << std::endl;
 }

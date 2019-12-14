@@ -113,6 +113,9 @@ bool TypesMgr::loadDictionary(string key, UA_NodeId node)
     }
 
     m_store.insert(std::pair<string, map<string, int>>(key, dict));
+
+    UA_Variant_deleteMembers(&attr);
+    UA_NodeId_deleteMembers(&childID);
     return true;
 }
 

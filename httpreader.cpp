@@ -86,7 +86,7 @@ bool HttpReader::connectSSL()
     stream->handshake(ssl::stream_base::client);
 
     if (m_stream)
-	delete m_stream;
+        delete m_stream;
 
     m_stream = (tcp::socket *)stream;
     return true;
@@ -101,13 +101,14 @@ void HttpReader::close()
             m_stream->shutdown(tcp::socket::shutdown_both, ec);
             m_buffer.consume(m_buffer.size());
 
-            delete m_stream;
+//            delete m_stream;
         }
         catch (exception &e)
         {
             cerr << e.what() << endl;
         }
 
+        delete m_stream;
         m_stream = nullptr;
     }
     m_lastConnectionTime = 0;

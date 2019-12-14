@@ -3,6 +3,7 @@
 
 #include <boost/property_tree/xml_parser.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ini_parser.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/filesystem.hpp>
@@ -19,12 +20,13 @@
 #include "mtconnect_ids.h"
 #include "mteuInfo.h"
 #include "util.h"
+#include "types_mtconnect_generated.h"
 
 namespace fs = boost::filesystem;
 
 agentHandler::agentHandler()
 {
-    m_uaServer = NULL;
+    m_uaServer = nullptr;
 }
 
 agentHandler::~agentHandler()
@@ -38,193 +40,18 @@ void agentHandler::setup(UA_Server *uaServer, UA_NodeId topNode, int ns)
     m_namespace = ns;
 
     m_typesMgr.setup(uaServer);
-    getEventTypes(UA_NODEID_NUMERIC(2, MT_MTCONTROLLEDVOCABEVENTCLASSTYPE), UA_NODEID_NUMERIC(2, MT_MTCONTROLLEDVOCABEVENTTYPE), m_eventTypes);
-    getEventTypes(UA_NODEID_NUMERIC(2, MT_MTSTRINGEVENTCLASSTYPE), UA_NODEID_NUMERIC(2, MT_MTSTRINGEVENTTYPE), m_eventTypes);
-    getEventTypes(UA_NODEID_NUMERIC(2, MT_MTNUMERICEVENTCLASSTYPE), UA_NODEID_NUMERIC(2, MT_MTNUMERICEVENTTYPE), m_eventTypes);
+
+    getEventTypes(UA_NODEID_NUMERIC(2, MT_MTCONTROLLEDVOCABEVENTCLASSTYPE),
+                  UA_NODEID_NUMERIC(2, MT_MTCONTROLLEDVOCABEVENTTYPE), m_eventTypes);
+
+    getEventTypes(UA_NODEID_NUMERIC(2, MT_MTSTRINGEVENTCLASSTYPE),
+                  UA_NODEID_NUMERIC(2, MT_MTSTRINGEVENTTYPE), m_eventTypes);
+
+    getEventTypes(UA_NODEID_NUMERIC(2, MT_MTNUMERICEVENTCLASSTYPE),
+                  UA_NODEID_NUMERIC(2, MT_MTNUMERICEVENTTYPE), m_eventTypes);
 }
 
-
-void agentHandler::setupMetaInfo(string deviceUUID, UA_NodeId &topNode, ptree &probeInfo, string path, vector<UA_NodeId> &nodePath)
-{
-    for (ptree::iterator p = probeInfo.begin(); p != probeInfo.end(); p++)
-    {
-        string display = p->first;
-
-        if (display.compare("<xmlattr>") == 0 || display.compare("Compositions") == 0
-                || display.compare("Description") == 0)
-            continue;
-
-        if (!isLeafNode(p))
-        {
-            if (display.compare("DataItems") == 0)
-            {
-                ptree& dataItems = p->second;
-                set <string> types;
-                set <string> checkList;
-                for (ptree::iterator pos = dataItems.begin(); pos != dataItems.end(); pos++)
-                {
-                    string s = getJSON_data(pos->second, "<xmlattr>.type");
-                    string category = getJSON_data(pos->second, "<xmlattr>.category");
-                    if (category.compare("CONDITION") == 0)
-                        s += "Condition";
-
-                    if (types.count(s) > 0)
-                        checkList.insert(s);
-                    else
-                        types.insert(s);
-                }
-
-                for (ptree::iterator pos = dataItems.begin(); pos != dataItems.end(); pos++)
-                {
-                    string s = getJSON_data(pos->second, "<xmlattr>.type");
-                    string category = getJSON_data(pos->second, "<xmlattr>.category");
-                    if (category.compare("CONDITION") == 0)
-                        s += "Condition";
-
-                    UA_NodeId itemNode = addDeviceDataItem(deviceUUID, topNode, pos->second.get_child("<xmlattr>"), checkList.count(s) > 0, path, nodePath);
-                    // check for Source
-                    string source = getJSON_data(pos->second, "Source");
-                    if (source.length() > 0)
-                        addProperty(itemNode, "SourceData", source);
-
-
-                    // check for Constraints
-                    try {
-                        ptree& constraints = pos->second.get_child("Constraints");
-                        if (constraints.size() > 0)
-                        {
-                            UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-                            oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Constraints");
-
-                            UA_NodeId constraintNode;
-                            UA_Server_addObjectNode(m_uaServer,
-                                                      UA_NODEID_NUMERIC(m_namespace, 0),
-                                                      itemNode,
-                                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                                      UA_QUALIFIEDNAME(m_namespace, "Constraints"),
-                                                      UA_NODEID_NUMERIC(2, MT_MTCONSTRAINTTYPE),
-                                                      oAttr,
-                                                      NULL,
-                                                      &constraintNode);
-
-                            vector <string> values;
-                            for (ptree::iterator p = constraints.begin(); p != constraints.end(); p++)
-                            {
-                                string key = p->first;
-
-                                if (key.compare("Value") == 0)
-                                    values.push_back(p->second.data());
-                                else
-                                {
-                                    UA_VariableAttributes mnAttr = UA_VariableAttributes_default;
-                                    mnAttr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_DOUBLE);
-                                    UA_Double value = atof(p->second.data().c_str());
-
-                                    UA_Variant_setScalar(&mnAttr.value, &value, &UA_TYPES[UA_TYPES_DOUBLE]);
-                                    mnAttr.displayName = util::toUALocalizedText(key);
-                                    UA_Server_addVariableNode(m_uaServer, UA_NODEID_NULL, constraintNode,
-                                                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                                              util::toUAQualifiedName(m_namespace, key),
-                                                              UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), mnAttr, NULL, NULL);
-
-                                }
-                            }
-
-                            size_t size = values.size();
-                            if (size > 0)
-                            {
-
-                                UA_String *data = (UA_String *)UA_malloc(sizeof(UA_String) * size);
-
-                                int i = 0;
-                                for (vector<string>::iterator q = values.begin(); q != values.end(); q++, i++)
-                                    data[i] = util::toUAString((*q));
-
-                                UA_VariableAttributes mnAttr = UA_VariableAttributes_default;
-                                mnAttr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRING);
-                                UA_Variant_setArray(&mnAttr.value, data, size, &UA_TYPES[UA_TYPES_STRING]);
-
-                                mnAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Values");
-                                UA_Server_addVariableNode(m_uaServer, UA_NODEID_NULL, constraintNode,
-                                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                                          UA_QUALIFIEDNAME(m_namespace, "Values"),
-                                                          UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
-                                                          mnAttr, NULL, NULL);
-                            }
-                        }
-
-                    } catch (...) {
-                    }
-
-                }
-            }
-            else
-            {
-                UA_NodeId nextId = topNode;
-
-                UA_NodeId nodeType = UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE);
-
-                UA_UInt32 typeId = mtIDMap[p->first + "Type"];
-                if (typeId != 0)
-                    nodeType = UA_NODEID_NUMERIC(2, typeId);
-
-                string name = getJSON_data(p->second, "<xmlattr>.name");
-                string id = getJSON_data(p->second, "<xmlattr>.id");
-
-                bool setNotifiers = false;
-                if (display.compare("Linear") == 0 || display.compare("Rotary") == 0)
-                {
-                    if (name.length() > 0)
-                        display += "[" + name + "]";
-
-                    setNotifiers = true;
-                }
-
-                UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-                oAttr.displayName = util::toUALocalizedText(display);
-                UA_Server_addObjectNode(m_uaServer, UA_NODEID_NULL,
-                                        topNode,
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                        util::toUAQualifiedName(m_namespace, display),
-                                        nodeType,
-                                        oAttr,
-                                        NULL,
-                                        &nextId);
-
-
-                if (name.length() > 0)
-                    addProperty(nextId, "Name", name);
-
-                UA_String value;
-                value = util::toUAString(id);
-                UA_Server_writeObjectProperty_scalar(m_uaServer, nextId,
-                                              UA_QUALIFIEDNAME(2, "XmlId"),
-                                              &value, &UA_TYPES[UA_TYPES_STRING]);
-
-                vector<UA_NodeId> copyNodePath(nodePath);
-                copyNodePath.push_back(nextId);
-
-                if (setNotifiers)
-                    addNotifierToAll(copyNodePath);
-
-                setupMetaInfo(deviceUUID, nextId, p->second, path + "." + display, copyNodePath);
-            }
-        }
-        else
-        {
-            UA_VariableAttributes mnAttr = UA_VariableAttributes_default;
-            UA_String value = util::toUAString(p->second.data());
-            UA_Variant_setScalar(&mnAttr.value, &value, &UA_TYPES[UA_TYPES_STRING]);
-            mnAttr.displayName = util::toUALocalizedText(display);
-            UA_Server_addVariableNode(m_uaServer, UA_NODEID_NULL, topNode,
-                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                      util::toUAQualifiedName(m_namespace, display),
-                                      UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), mnAttr, NULL, NULL);
-        }
-    }
-}
-
-void agentHandler::setProbeInfo(string probeXml)
+void agentHandler::processProbeInfo(string probeXml)
 {
     ptree probeInfo;
     try {
@@ -245,39 +72,39 @@ void agentHandler::setProbeInfo(string probeXml)
     {
         ptree& device = pos->second;
 
-        string deviceName = getJSON_data(device, "<xmlattr>.name");
-        string deviceUUID = getJSON_data(device, "<xmlattr>.uuid");
-        string deviceId = getJSON_data(device, "<xmlattr>.id");
-        string description = getJSON_data(device, "Description");
+        string deviceName = util::getJSON_data(device, "<xmlattr>.name");
+        string deviceUUID = util::getJSON_data(device, "<xmlattr>.uuid");
+        string deviceId = util::getJSON_data(device, "<xmlattr>.id");
+        string description = util::getJSON_data(device, "Description");
         string displayName = deviceName + " [" + deviceUUID + "]";
 
         UA_NodeId deviceNodeId; /* get the nodeid assigned by the server */
         UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
         oAttr.displayName = util::toUALocalizedText(deviceName);
 
-        UA_Server_addObjectNode(m_uaServer, UA_NODEID_NUMERIC(m_namespace, 0),
+        VerifyReturn(UA_Server_addObjectNode(m_uaServer, UA_NODEID_NUMERIC(m_namespace, 0),
                                 m_topNode,
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                                 util::toUAQualifiedName(m_namespace, deviceName),
                                 UA_NODEID_NUMERIC(2, MT_MTDEVICETYPE),
-                                oAttr, NULL, &deviceNodeId);
+                                oAttr, NULL, &deviceNodeId));
 
 
         UA_String value;
         value = util::toUAString(deviceId);
-        UA_Server_writeObjectProperty_scalar(m_uaServer, deviceNodeId,
+        VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, deviceNodeId,
                                       UA_QUALIFIEDNAME(2, "XmlId"),
-                                      &value, &UA_TYPES[UA_TYPES_STRING]);
+                                      &value, &UA_TYPES[UA_TYPES_STRING]));
 
         value = util::toUAString(deviceUUID);
-        UA_Server_writeObjectProperty_scalar(m_uaServer, deviceNodeId,
+        VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, deviceNodeId,
                                       UA_QUALIFIEDNAME(2, "Uuid"),
-                                      &value, &UA_TYPES[UA_TYPES_STRING]);
+                                      &value, &UA_TYPES[UA_TYPES_STRING]));
 
         value = util::toUAString(deviceName);
-        UA_Server_writeObjectProperty_scalar(m_uaServer, deviceNodeId,
+        VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, deviceNodeId,
                                       UA_QUALIFIEDNAME(2, "Name"),
-                                      &value, &UA_TYPES[UA_TYPES_STRING]);
+                                      &value, &UA_TYPES[UA_TYPES_STRING]));
 
         try {
 
@@ -285,55 +112,21 @@ void agentHandler::setProbeInfo(string probeXml)
 
             ptree& deviceDescription = device.get_child("Description.<xmlattr>");
             oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Description");
-            UA_Server_addObjectNode(m_uaServer, UA_NODEID_NUMERIC(m_namespace, 0),
+            VerifyReturn(UA_Server_addObjectNode(m_uaServer, UA_NODEID_NUMERIC(m_namespace, 0),
                                     deviceNodeId,
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                     UA_QUALIFIEDNAME(m_namespace, "Description"),
                                     UA_NODEID_NUMERIC(2, MT_MTDESCRIPTIONTYPE),
-                                    oAttr, NULL, &descriptionNodeId);
+                                    oAttr, NULL, &descriptionNodeId));
 
             setProperties(descriptionNodeId, deviceDescription);
 
-        } catch (...) {
-        }
-
-
-        addNotifier(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), deviceNodeId);
-
-#if 0
-        try {
-
-            ptree& deviceComponents = device.get_child("DataItems");
-            for (ptree::iterator pos = deviceComponents.begin(); pos != deviceComponents.end(); pos++)
-                addDeviceDataItem(deviceNodeId, pos->second.get_child("<xmlattr>"));
+            UA_NodeId_deleteMembers(&descriptionNodeId);
 
         } catch (...) {
         }
-#endif
 
-#if 0
-        if (findChildId(deviceNodeId,
-                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                    UA_QUALIFIEDNAME(2, "XmlId"), &childID))
-        {
-            writeNodeData(childID, deviceId);
-        }
-
-        if (findChildId(deviceNodeId,
-                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                    UA_QUALIFIEDNAME(2, "Uuid"), &childID))
-        {
-            writeNodeData(childID, deviceUUID);
-        }
-
-        if (findChildId(deviceNodeId,
-                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                    UA_QUALIFIEDNAME(2, "Name"), &childID))
-        {
-            writeNodeData(childID, deviceName);
-        }
-#endif
-
+        addNotifier(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), deviceNodeId, true);
 
         string settingsName = Settings::getSettingsName("OPCUA-" + deviceUUID);
 //        m_settings.restore(settingsName);
@@ -341,47 +134,301 @@ void agentHandler::setProbeInfo(string probeXml)
         vector<UA_NodeId> nodePath;
 
         nodePath.push_back(deviceNodeId);
-        setupMetaInfo(deviceUUID, deviceNodeId, device, "", nodePath);
+        processDeviceMetaInfo(deviceUUID, deviceNodeId, device, "", nodePath);
+
+        UA_NodeId_deleteMembers(&deviceNodeId);
 //        m_settings.save(settingsName);
     }
-
 }
 
-bool agentHandler::process(string xmlText)
-{
-    m_xml = xmlText;
+void agentHandler::processDeviceMetaInfo(string deviceUUID, UA_NodeId &parentNode, ptree &probeInfo, string path, vector<UA_NodeId> &nodePath)
+{ 
+    multiset<string> nameList;
 
-    try {
-         // Read the stringstream into a Boost property tree, m_ptree
-        istringstream iss;
-        iss.str (m_xml);
+    researchDisplayNames(probeInfo, nameList);
 
-	m_ptree.clear();
-        boost::property_tree::read_xml( iss, m_ptree );
-    }
-    catch (exception & e)
+    for (ptree::iterator p = probeInfo.begin(); p != probeInfo.end(); p++)
     {
-        std::cerr << e.what() << endl;
-        return false;
-    }
+        string display = p->first;
 
-    return true;
+        if (display.compare("<xmlattr>") == 0 || display.compare("Description") == 0)
+            continue;
+
+        if (util::isLeafNode(p))
+        {
+            UA_VariableAttributes mnAttr = UA_VariableAttributes_default;
+            UA_String value = util::toUAString(p->second.data());
+            UA_Variant_setScalar(&mnAttr.value, &value, &UA_TYPES[UA_TYPES_STRING]);
+            mnAttr.displayName = util::toUALocalizedText(display);
+            VerifyReturn(UA_Server_addVariableNode(m_uaServer, UA_NODEID_NULL, parentNode,
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                      util::toUAQualifiedName(m_namespace, display),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), mnAttr, NULL, NULL));
+            continue;
+        }
+
+        if (display.compare("DataItems") == 0)
+        {
+            ptree& dataItems = p->second;
+
+            multiset <string> nameListDataItem;
+            researchDisplayNames(dataItems, nameListDataItem);
+
+            for (ptree::iterator pos = dataItems.begin(); pos != dataItems.end(); pos++)
+            {
+                string s = util::getJSON_data(pos->second, "<xmlattr>.type");
+                string category = util::getJSON_data(pos->second, "<xmlattr>.category");
+                if (category.compare("CONDITION") == 0)
+                    s += "Condition";
+
+                UA_NodeId itemNode = addDeviceDataItem(deviceUUID, parentNode, pos->second.get_child("<xmlattr>"), nameListDataItem, path, nodePath);
+
+                // check for Source
+                string source = util::getJSON_data(pos->second, "Source");
+                if (source.length() > 0)
+                    addCustomPropertyWithData(itemNode, "SourceData", source);
+
+                string initialValue = util::getJSON_data(pos->second, "InitialValue");
+                if (initialValue.length() > 0)
+                {
+                    UA_Variant myVar;
+                    UA_Double value = atof(initialValue.c_str());
+                    UA_Variant_setScalar(&myVar, &value, &UA_TYPES[UA_TYPES_DOUBLE]);
+                    UA_NodeId nodeId = addCustomProperty(itemNode, "InitialValue",
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_DOUBLE));
+
+                    VerifyReturn(UA_Server_writeValue(m_uaServer, nodeId, myVar));
+                }
+
+                // check for ResetTrigger
+                string resetTrigger = util::getJSON_data(pos->second, "ResetTrigger");
+                if (resetTrigger.length() > 0)
+                {
+                    UA_Variant myVar;
+                    UA_Int32 myInt32 = m_typesMgr.lookup("MTResetTriggerType", resetTrigger);
+
+                    UA_Variant_setScalar(&myVar, &myInt32, &UA_TYPES[UA_TYPES_INT32]);
+                    UA_NodeId nodeId = addCustomProperty(itemNode, "ResetTrigger",
+                                      UA_NODEID_NUMERIC(2, MT_MTRESETTRIGGERTYPE));
+
+                    VerifyReturn(UA_Server_writeValue(m_uaServer, nodeId, myVar));
+
+                    addCustomProperty(itemNode, "ResetTriggeredReason",
+                                      UA_NODEID_NUMERIC(2, MT_MTRESETTRIGGERTYPE));
+                }
+
+                // check for Filters
+                try {
+                    ptree& filters = pos->second.get_child("Filters");
+                    if (filters.size() > 0)
+                    {
+                        for (ptree::iterator p = filters.begin(); p != filters.end(); p++)
+                        {
+                            string filterType = util::getJSON_data(p->second, "<xmlattr>.type");
+
+                            if (filterType.length() == 0)
+                                continue;
+
+                            UA_VariableAttributes mnAttr = UA_VariableAttributes_default;
+                            mnAttr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_DOUBLE);
+                            UA_Double value = atof(p->second.data().c_str());
+
+                            string displayName = util::toCamelCase(filterType) + "Filter";
+                            UA_Variant_setScalar(&mnAttr.value, &value, &UA_TYPES[UA_TYPES_DOUBLE]);
+                            mnAttr.displayName = util::toUALocalizedText(displayName);
+
+                            VerifyReturn(UA_Server_addVariableNode(m_uaServer,
+                                                                   UA_NODEID_NUMERIC(m_namespace, 0),
+                                                                   itemNode,
+                                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                                                   util::toUAQualifiedName(m_namespace, displayName),
+                                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                                                                   mnAttr, nullptr, nullptr));
+                        }
+                    }
+
+                } catch (...) {
+                }
+
+                // check for Constraints
+                try {
+                    ptree& constraints = pos->second.get_child("Constraints");
+                    if (constraints.size() > 0)
+                    {
+                        UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+                        oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Constraints");
+
+                        UA_NodeId constraintNode;
+                        VerifyReturn(UA_Server_addObjectNode(m_uaServer,
+                                                  UA_NODEID_NUMERIC(m_namespace, 0),
+                                                  itemNode,
+                                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                                  UA_QUALIFIEDNAME(m_namespace, "Constraints"),
+                                                  UA_NODEID_NUMERIC(2, MT_MTCONSTRAINTTYPE),
+                                                  oAttr,
+                                                  NULL,
+                                                  &constraintNode));
+
+                        vector <string> values;
+                        for (ptree::iterator p = constraints.begin(); p != constraints.end(); p++)
+                        {
+                            string key = p->first;
+
+                            if (key.compare("Value") == 0)
+                                values.push_back(p->second.data());
+                            else
+                            {
+                                UA_VariableAttributes mnAttr = UA_VariableAttributes_default;
+                                mnAttr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_DOUBLE);
+                                UA_Double value = atof(p->second.data().c_str());
+
+                                UA_Variant_setScalar(&mnAttr.value, &value, &UA_TYPES[UA_TYPES_DOUBLE]);
+                                mnAttr.displayName = util::toUALocalizedText(key);
+                                UA_Server_addVariableNode(m_uaServer, UA_NODEID_NULL, constraintNode,
+                                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                                          util::toUAQualifiedName(m_namespace, key),
+                                                          UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), mnAttr, nullptr, nullptr);
+
+                            }
+                        }
+
+                        size_t size = values.size();
+                        if (size > 0)
+                        {
+
+                            UA_String *data = (UA_String *)UA_malloc(sizeof(UA_String) * size);
+
+                            int i = 0;
+                            for (vector<string>::iterator q = values.begin(); q != values.end(); q++, i++)
+                                data[i] = util::toUAString((*q));
+
+                            UA_VariableAttributes mnAttr = UA_VariableAttributes_default;
+                            mnAttr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRING);
+                            UA_Variant_setArray(&mnAttr.value, data, size, &UA_TYPES[UA_TYPES_STRING]);
+
+                            mnAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Values");
+                            VerifyReturn(UA_Server_addVariableNode(m_uaServer, UA_NODEID_NULL, constraintNode,
+                                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                                      UA_QUALIFIEDNAME(m_namespace, "Values"),
+                                                      UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                                                      mnAttr, NULL, NULL));
+                        }
+
+                        UA_NodeId_deleteMembers(&constraintNode);
+                    }
+
+                } catch (...) {
+                }
+
+                UA_NodeId_deleteMembers(&itemNode);
+            }
+        }
+        else if (display.compare("Compositions") == 0)
+        {
+            ptree& dataItems = p->second;
+
+            UA_NodeId compositionTopId;
+            UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+            oAttr.displayName = util::toUALocalizedText(display);
+            VerifyReturn(UA_Server_addObjectNode(m_uaServer, UA_NODEID_NULL,
+                                    parentNode,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                    util::toUAQualifiedName(m_namespace, display),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE),
+                                    oAttr,
+                                    NULL,
+                                    &compositionTopId));
+
+            for (ptree::iterator pos = dataItems.begin(); pos != dataItems.end(); pos++)
+            {
+                string type = util::getJSON_data(pos->second, "<xmlattr>.type");
+                string id = util::getJSON_data(pos->second, "<xmlattr>.id");
+
+                string t = util::toCamelCase(type);
+                oAttr.displayName = util::toUALocalizedText(t);
+
+                UA_NodeId nextId;
+                VerifyReturn(UA_Server_addObjectNode(m_uaServer,
+                                          UA_NODEID_NUMERIC(m_namespace, 0),
+                                          compositionTopId,
+                                          UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                          util::toUAQualifiedName(m_namespace, t),
+                                          UA_NODEID_NUMERIC(2, MT_MTCOMPOSITIONTYPE),
+                                          oAttr,
+                                          NULL,
+                                          &nextId));
+
+                setMTTypeNameAndId(nextId, type, id);
+                UA_NodeId_deleteMembers(&nextId);
+            }
+
+            UA_NodeId_deleteMembers(&compositionTopId);
+        }
+        else
+        {
+            UA_NodeId nextId;
+
+            UA_NodeId nodeType = UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE);
+
+            UA_UInt32 typeId = mtIDMap[p->first + "Type"];
+            if (typeId != 0)
+                nodeType = UA_NODEID_NUMERIC(2, typeId);
+
+            string name = util::getJSON_data(p->second, "<xmlattr>.name");
+            string id = util::getJSON_data(p->second, "<xmlattr>.id");
+
+            bool setNotifiers = false;
+            if (display.compare("Linear") == 0 || display.compare("Rotary") == 0)
+            {
+                if (name.length() > 0)
+                {
+                    // if can't disguish by appending name, append id instead
+                    if (nameList.count(display + "[" + name + "]") > 1)
+                        display += "[" + id + "]";
+                    else
+                        display += "[" + name + "]";
+                }
+
+                setNotifiers = true;
+            }
+
+            UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+            oAttr.displayName = util::toUALocalizedText(display);
+            VerifyReturn(UA_Server_addObjectNode(m_uaServer, UA_NODEID_NULL,
+                                    parentNode,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                    util::toUAQualifiedName(m_namespace, display),
+                                    nodeType,
+                                    oAttr,
+                                    NULL,
+                                    &nextId));
+
+
+            if (name.length() > 0)
+                addCustomPropertyWithData(nextId, "Name", name);
+
+            if (id.length() > 0)
+            {
+                UA_String value = util::toUAString(id);
+                VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, nextId,
+                                              UA_QUALIFIEDNAME(2, "XmlId"),
+                                              &value, &UA_TYPES[UA_TYPES_STRING]));
+            }
+
+            vector<UA_NodeId> copyNodePath(nodePath);
+            copyNodePath.push_back(nextId);
+
+            if (setNotifiers)
+                addNotifierToAll(copyNodePath);
+
+            processDeviceMetaInfo(deviceUUID, nextId, p->second, path + "." + display, copyNodePath);
+
+            UA_NodeId_deleteMembers(&nextId);
+        }
+    }
 }
 
-
-
-string agentHandler::getJSON_data(ptree & tree, string path)
-{
-    try {
-        ptree& node = tree.get_child(path);
-        return node.data();
-
-    } catch (...) {
-        return "";
-    }
-}
-
-UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode, ptree &dataItem, bool appendName, string path, vector<UA_NodeId> &nodePath)
+UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &parentNode, ptree &dataItem, multiset<string> &appendName, string path, vector<UA_NodeId> &nodePath)
 {
     std::map<string, string> m;
 
@@ -390,7 +437,7 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
         string key = pos->first;
         string value = pos->second.data();
 
-         m[key] = value;
+        m[key] = value;
     }
 
     string id = m["id"];
@@ -401,17 +448,23 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
 
     UA_NodeId nextId;
     string subTypeCamelCase;
-    string displayName = toCamelCase(type);
+    string displayName = util::toCamelCase(type);
 
     if (subType.length() > 0)
-        subTypeCamelCase = toCamelCase(subType);
+        subTypeCamelCase = util::toCamelCase(subType);
 
     string actualDisplayName = subTypeCamelCase + displayName;
     if (category.compare("CONDITION") == 0)
         actualDisplayName += "Condition";
 
-    if (name.length() > 0 && appendName)
-        actualDisplayName += "[" + name + "]";
+    if (appendName.count(actualDisplayName) > 1)
+    {
+        if (appendName.count(actualDisplayName + "[" + name + "]") > 1)
+            actualDisplayName += "[" + id + "]";
+        else
+            actualDisplayName += "[" + name + "]";
+    }
+
 
     string nodeIdentifier = deviceUUID + "." + id;
     if (category.compare("EVENT") == 0)
@@ -427,52 +480,43 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
         oAttr.displayName = util::toUALocalizedText(actualDisplayName);
 
         UA_UInt32 eventClassID = eventNodeType.identifier.numeric;
-        if (eventClassID == MT_MTSTRINGEVENTTYPE)
-        {
-             oAttr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRING);
-             m_fieldDataTypes.insert(pair<string, UA_NodeId>(nodeIdentifier, UA_NODEID_NUMERIC(0, UA_NS0ID_STRING)));
-        }
-        else if (eventClassID == MT_MTNUMERICEVENTTYPE)
-        {
-            oAttr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_DOUBLE);
-            m_fieldDataTypes.insert(pair<string, UA_NodeId>(nodeIdentifier, UA_NODEID_NUMERIC(0, UA_NS0ID_DOUBLE)));
-        }
-        else if (eventClassID == MT_MTCONTROLLEDVOCABEVENTTYPE)
-        {
-            oAttr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_UINT32);
-            m_fieldDataTypes.insert(pair<string, UA_NodeId>(nodeIdentifier, UA_NODEID_NUMERIC(0, UA_NS0ID_ENUMVALUETYPE)));
-        }
-
+        UA_UInt32 eventClassParentId = 0;
 
         if (type.compare("ASSET_CHANGED") == 0 || type.compare("ASSET_REMOVED") == 0)
         {
             eventNodeType = UA_NODEID_NUMERIC(2, MT_MTASSETEVENTTYPE);
             oAttr.dataType = UA_NODEID_NUMERIC(2, MT_ASSETEVENTDATATYPE);
+            m_fieldDataTypes.insert(pair<string, UA_NodeId>(nodeIdentifier, UA_NODEID_NUMERIC(2, MT_ASSETEVENTDATATYPE)));
+        }
+        else
+        if (eventClassID == MT_MTSTRINGEVENTTYPE)
+        {
+             oAttr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRING);
+             m_fieldDataTypes.insert(pair<string, UA_NodeId>(nodeIdentifier, UA_NODEID_NUMERIC(0, UA_NS0ID_STRING)));
+             eventClassParentId = MT_MTSTRINGEVENTCLASSTYPE;
+        }
+        else if (eventClassID == MT_MTNUMERICEVENTTYPE)
+        {
+            oAttr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_DOUBLE);
+            m_fieldDataTypes.insert(pair<string, UA_NodeId>(nodeIdentifier, UA_NODEID_NUMERIC(0, UA_NS0ID_DOUBLE)));
+            eventClassParentId = MT_MTNUMERICEVENTCLASSTYPE;
+        }
+        else if (eventClassID == MT_MTCONTROLLEDVOCABEVENTTYPE)
+        {
+            oAttr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_UINT32);
+            m_fieldDataTypes.insert(pair<string, UA_NodeId>(nodeIdentifier, UA_NODEID_NUMERIC(0, UA_NS0ID_ENUMVALUETYPE)));
+            eventClassParentId = MT_MTCONTROLLEDVOCABEVENTCLASSTYPE;
         }
 
-        UA_StatusCode statusCode = UA_Server_addVariableNode(m_uaServer,
+        VerifyReturn(UA_Server_addVariableNode(m_uaServer,
                                 util::toUANodeId(m_namespace, nodeIdentifier),
-                                topNode,
+                                parentNode,
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                 util::toUAQualifiedName(m_namespace, actualDisplayName),
                                 eventNodeType,
-                                oAttr, NULL, &nextId);
+                                oAttr, NULL, &nextId));
 
-        UA_ExpandedNodeId targetExpId;
-
-        targetExpId.nodeId       = nextId;
-        targetExpId.namespaceUri = UA_STRING_NULL;
-        targetExpId.serverIndex  = 0;
-
-        UA_Server_addReference(m_uaServer, UA_NODEID_NUMERIC(2, mtIDMap[displayName + "ClassType"]), UA_NODEID_NUMERIC(2, MT_HASMTCLASSTYPE), targetExpId, false);
-
-        if (subType.length() > 0)
-        {
-            // add MTSubTypeName property
-            addProperty(nextId, "MTSubTypeName", subType);
-            UA_Server_addReference(m_uaServer, UA_NODEID_NUMERIC(2, mtIDMap[subTypeCamelCase + "SubClassType"]), UA_NODEID_NUMERIC(2, MT_HASMTSUBCLASSTYPE), targetExpId, false);
-        }
-
+        addMTClassReferences(nextId, eventClassParentId, displayName, subType);
         addNotifierToAll(nodePath);
 
     }
@@ -483,13 +527,13 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
 
         m_fieldDataTypes.insert(pair<string, UA_NodeId>(nodeIdentifier, UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE)));
 
-        UA_Server_addObjectNode(m_uaServer,
+        VerifyReturn(UA_Server_addObjectNode(m_uaServer,
                                 util::toUANodeId(m_namespace, nodeIdentifier),
-                                topNode ,
+                                parentNode ,
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                 util::toUAQualifiedName(m_namespace, actualDisplayName),
-                                 UA_NODEID_NUMERIC(2, MT_MTCONDITIONTYPE),
-                                oAttr, NULL, &nextId);
+                                UA_NODEID_NUMERIC(2, MT_MTCONDITIONTYPE),
+                                oAttr, NULL, &nextId));
 
         UA_ExpandedNodeId targetExpId;
 
@@ -497,10 +541,13 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
         targetExpId.namespaceUri = UA_STRING_NULL;
         targetExpId.serverIndex  = 0;
 
-        UA_Server_addReference(m_uaServer, topNode, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCONDITION), targetExpId, true);
+        VerifyReturn(UA_Server_addReference(m_uaServer,
+                                parentNode, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCONDITION), targetExpId, true));
 
-        UA_Server_addReference(m_uaServer, UA_NODEID_NUMERIC(2, MT_SYSTEMCLASSTYPE), UA_NODEID_NUMERIC(2, MT_HASMTCLASSTYPE), targetExpId, false);
-        addNotifier(topNode, nextId);
+        VerifyReturn(UA_Server_addReference(m_uaServer,
+                                UA_NODEID_NUMERIC(2, MT_SYSTEMCLASSTYPE),
+                                            UA_NODEID_NUMERIC(2, MT_HASMTCLASSTYPE), targetExpId, false));
+        addNotifier(parentNode, nextId, false);
     }
     else if (category.compare("SAMPLE") == 0)
     {
@@ -521,39 +568,27 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
         m_fieldDataTypes.insert(pair<string, UA_NodeId>(nodeIdentifier, oAttr.dataType));
 
 
-        UA_StatusCode statusCode = UA_Server_addVariableNode(m_uaServer,
+        VerifyReturn(UA_Server_addVariableNode(m_uaServer,
                                 util::toUANodeId(m_namespace, nodeIdentifier),
-                                topNode,
+                                parentNode,
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                 util::toUAQualifiedName(m_namespace, actualDisplayName),
                                 nodeType,
-                                oAttr, NULL, &nextId);
+                                oAttr, NULL, &nextId));
 
-        UA_ExpandedNodeId targetExpId;
-
-        targetExpId.nodeId       = nextId;
-        targetExpId.namespaceUri = UA_STRING_NULL;
-        targetExpId.serverIndex  = 0;
-
-        UA_Server_addReference(m_uaServer, UA_NODEID_NUMERIC(2, mtIDMap[displayName + "ClassType"]), UA_NODEID_NUMERIC(2, MT_HASMTCLASSTYPE), targetExpId, false);
-
-        if (subType.length() > 0)
-        {
-            // add MTSubTypeName property
-            addProperty(nextId, "MTSubTypeName", subType);
-
-            UA_Server_addReference(m_uaServer, UA_NODEID_NUMERIC(2, mtIDMap[subTypeCamelCase + "SubClassType"]), UA_NODEID_NUMERIC(2, MT_HASMTSUBCLASSTYPE), targetExpId, false);
-        }
-
+        addMTClassReferences(nextId, MT_MTNUMERICEVENTCLASSTYPE, displayName, subType);
 
         UA_NodeId nodeId;
-        if (findChildId(nextId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(0, "EngineeringUnits"), &nodeId))
+
+        // try both namespace 0 and 2. For some MTConnect dataType like ThreeSpaceSampleType, name space is 2 instead.
+        if (lookupChildNodeId(nextId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(0, "EngineeringUnits"), &nodeId) ||
+            lookupChildNodeId(nextId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(2, "EngineeringUnits"), &nodeId))
         {
             UA_EUInformation euData;
 
-	    std::map<string, EuInfo>::iterator it = euStore.find(m["units"]);
+            std::map<string, EuInfo>::iterator it = euStore.find(m["units"]);
 	
-	    if (it != euStore.end())
+            if (it != euStore.end())
             {
             	EuInfo *euInfo = &it->second;
 
@@ -565,8 +600,10 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
                 UA_Variant v;
                 UA_Variant_setScalar(&v, &euData, &UA_TYPES[UA_TYPES_EUINFORMATION]);
 
-                UA_Server_writeValue(m_uaServer, nodeId, v);
+                VerifyReturn(UA_Server_writeValue(m_uaServer, nodeId, v));
             }
+
+            UA_NodeId_deleteMembers(&nodeId);
         }
     }
 
@@ -579,7 +616,8 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
         wv.attributeId = UA_ATTRIBUTEID_VALUE;
         wv.value.status = UA_STATUSCODE_BADDATAUNAVAILABLE;
         wv.value.hasStatus = true;
-        UA_StatusCode status = UA_Server_write(m_uaServer, &wv);
+
+        VerifyReturn(UA_Server_write(m_uaServer, &wv));
     }
 
     m.erase("id");
@@ -594,26 +632,10 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
         string value = it->second;
 
         if (value.length() > 0)
-            addProperty(nextId, toCamelCase(key), value);
+            addCustomPropertyWithData(nextId, util::toCamelCase(key), value);
     }
 
-    UA_Variant v;
-    UA_NodeId nodeId;
-    UA_String value;
-
-//cerr << type << endl;
-//cerr << id << endl;
-    value = util::toUAString(id);
-    UA_Variant_setScalar(&v, &value, &UA_TYPES[UA_TYPES_STRING]);
-
-    if (findChildId(nextId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(2, "XmlId"), &nodeId))
-            UA_Server_writeValue(m_uaServer, nodeId, v);
-
-    value = util::toUAString(type);
-    UA_Variant_setScalar(&v, &value, &UA_TYPES[UA_TYPES_STRING]);
-    if (findChildId(nextId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(2, "MTTypeName"), &nodeId))
-            UA_Server_writeValue(m_uaServer, nodeId, v);
-
+    setMTTypeNameAndId(nextId, type, id);
 
 #if 0
     UA_EnumValueType enumData;
@@ -624,18 +646,21 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
     enumData.value = 0;
     enumData.displayName = UA_LOCALIZEDTEXT("", "");
     enumData.description = util::toUALocalizedText(category);
-    UA_Server_writeObjectProperty_scalar(m_uaServer, nextId,
+    VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, nextId,
                                   UA_QUALIFIEDNAME(2, "Category"),
                                   &enumData,
-                                  &UA_TYPES[UA_TYPES_ENUMVALUETYPE]);
+                                  &UA_TYPES[UA_TYPES_ENUMVALUETYPE]));
 #endif
 
-    UA_Int32 dd = m_typesMgr.lookup("MTCategoryType", category);
-    UA_Variant_setScalar(&v, &dd, &UA_TYPES[UA_TYPES_INT32]);
-    if (findChildId(nextId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(2, "Category"), &nodeId))
-            UA_Server_writeValue(m_uaServer, nodeId, v);
 
-    if (findChildId(nextId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(0, "EnumStrings"), &nodeId))
+    UA_Int32 dd = m_typesMgr.lookup("MTCategoryType", category);
+
+    util::writeObject_scalar(m_uaServer, nextId,
+                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(2, "Category"),
+                             &dd, &UA_TYPES[UA_TYPES_INT32]);
+
+    UA_NodeId nodeId;
+    if (lookupChildNodeId(nextId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(0, "EnumStrings"), &nodeId))
     {
         UA_Variant enumValues;
         bool enumLoaded = true;
@@ -647,9 +672,10 @@ UA_NodeId agentHandler::addDeviceDataItem(string deviceUUID, UA_NodeId &topNode,
         }
 
         if (enumLoaded == true)
-            UA_Server_writeValue(m_uaServer, nodeId, enumValues);
+            VerifyReturn(UA_Server_writeValue(m_uaServer, nodeId, enumValues));
 
-	UA_Variant_clear(&enumValues);
+        UA_Variant_clear(&enumValues);
+        UA_NodeId_deleteMembers(&nodeId);
     }
 
     return nextId;
@@ -667,42 +693,482 @@ void agentHandler::setProperties(UA_NodeId &topNode, ptree &dataItem)
         UA_VariableAttributes oAttr = UA_VariableAttributes_default;
         oAttr.displayName = util::toUALocalizedText(key);
 
-        UA_Server_addVariableNode(m_uaServer, UA_NODEID_NUMERIC(m_namespace, 0),
+        VerifyReturn(UA_Server_addVariableNode(m_uaServer, UA_NODEID_NUMERIC(m_namespace, 0),
                                 topNode,
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                                 util::toUAQualifiedName(m_namespace, key),
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
-                                oAttr, NULL, &nextId);
+                                oAttr, NULL, &nextId));
 
 
-        writeNodeData(nextId, value);
+        util::writeNodeData(m_uaServer, nextId, value);
     }
 }
 
-
-bool agentHandler::isLeafNode(ptree::iterator &p)
+bool agentHandler::parseStreamData(string xmlText)
 {
-    size_t size = p->second.size();
-
-    if (size > 1)
-        return false;
-
-    if (size == 0)
-        return true;
+    m_xml = xmlText;
 
     try {
-        ptree& node = p->second.get_child("<xmlattr>");
-        return true;
+         // Read the stringstream into a Boost property tree, m_ptree
+        istringstream iss;
+        iss.str (m_xml);
 
-    } catch (...) {
+        m_ptree.clear();
+        boost::property_tree::read_xml( iss, m_ptree );
+    }
+    catch (exception & e)
+    {
+        std::cerr << e.what() << endl;
         return false;
     }
+
+    return true;
 }
 
+bool agentHandler::processStreamData()
+{
+    bool ret = true;
 
-void agentHandler::writeData(string variable, string dateTime, string data)
+    try {
+
+        // each line is one component stream
+        ptree& devices = m_ptree.get_child("MTConnectStreams.Streams");
+        for (ptree::iterator pos = devices.begin(); pos != devices.end(); pos++)
+        {
+            ptree& device = pos->second;
+
+            string deviceName = util::getJSON_data(device, "<xmlattr>.name");
+            string deviceUUID = util::getJSON_data(device, "<xmlattr>.uuid");
+
+            int rec_count = 0;
+
+            for (ptree::iterator p = device.begin(); p != device.end(); p++)
+            {
+                string key = p->first;
+                if (key.compare("ComponentStream") == 0)
+                {
+                    ptree &stream = p->second;
+
+                    string componentId = util::getJSON_data(stream, "<xmlattr>.componentId");
+
+                    for (ptree::iterator s = stream.begin(); s != stream.end(); s++)
+                        if (s->first.compare("<xmlattr>"))
+                            rec_count += processDeviceStreamData(deviceName, deviceUUID, componentId, s->first, s->second);
+                }
+            }
+        }
+    }
+    catch (exception& e)
+    {
+        cerr << e.what() << endl;
+        cerr << m_xml << endl;
+        ret = false;
+    }
+
+    return ret;
+}
+
+int agentHandler::processDeviceStreamData(const string &deviceName, const string &deviceUUID, const string &componentId, const string &levelName, ptree &pt)
+{
+    int rec_count = 0;
+
+    // output first any unique subtrees
+    for (ptree::iterator pos = pt.begin(); pos != pt.end(); pos++)
+    {
+        string dataItemId = util::getJSON_data(pos->second, "<xmlattr>.dataItemId");
+
+        if (dataItemId.length() > 0)
+        {
+            string timestamp = util::getJSON_data(pos->second, "<xmlattr>.timestamp");
+            string key = deviceUUID + "." + dataItemId;
+
+            string dataPoint = pos->second.data();
+
+            if (levelName.compare("Condition") == 0)
+            {
+                processConditionStream(deviceName, deviceUUID + "." + componentId, key, timestamp, pos->first, dataPoint, pos->second);
+                continue;
+            }
+            else
+            if (pos->first.compare("Message") == 0)
+            {
+                processMessageStream(deviceName, deviceUUID + "." + componentId, key, timestamp, dataPoint, pos->second);
+                continue;
+            }
+
+            string sampleCount = util::getJSON_data(pos->second, "<xmlattr>.sampleCount");
+
+            if (sampleCount.length() == 0)
+                updateData(key, timestamp, dataPoint, pos->second);
+            else
+            {
+                UA_NodeId nodeId = util::toUANodeId(m_namespace, key);
+
+                int count = atoi(sampleCount.c_str());
+                int rate = 0;
+                string sampleRate = util::getJSON_data(pos->second, "<xmlattr>.sampleRate");
+                if (sampleRate.length() > 0)
+                    rate = atoi(sampleRate.c_str());
+                else
+                {
+                    UA_NodeId n;
+                    UA_Variant v;
+
+                    if (lookupChildNodeId(nodeId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                    UA_QUALIFIEDNAME(2, "SampleRate"), &n))
+                    {
+                        VerifyReturn(UA_Server_readValue(m_uaServer, n, &v));
+                        UA_NodeId_deleteMembers(&n);
+
+                        if (UA_Variant_hasScalarType(&v, &UA_TYPES[UA_TYPES_DOUBLE]))
+                        {
+                            rate = *(UA_Double*)v.data;
+                        }
+                    }
+                }
+
+                istringstream iss(dataPoint, istringstream::in);
+                vector<string> dataList;
+                string item;
+
+                while( iss >> item )
+                    dataList.push_back(item);
+
+                if (dataList.size() != count)
+                    continue;
+
+                struct tm tm;
+
+                strptime(timestamp.c_str(), "%Y-%m-%dT%H:%M:%S", &tm);
+                tm.tm_isdst = -1;
+                time_t dt = mktime(&tm);
+
+                unsigned long pos = timestamp.find_first_of(".");
+                int milliSec = std::stoi(timestamp.substr(pos + 1, 3));
+
+                UA_Variant myVar;
+                for (int i=0; i<count; i++)
+                {
+                    UA_WriteValue wv;
+                    UA_WriteValue_init(&wv);
+                    wv.nodeId = nodeId;
+                    wv.attributeId = UA_ATTRIBUTEID_VALUE;
+
+                    UA_Double myDouble = atof(dataList[i].c_str());
+                    UA_Variant_setScalar(&myVar, &myDouble, &UA_TYPES[UA_TYPES_DOUBLE]);
+
+                    long tt = (dt * 1000 - (count - i) * (1000 / rate)) + milliSec ;
+
+                    wv.value.sourceTimestamp = UA_DateTime_fromUnixTime(tt/1000) + (tt % 1000) * UA_DATETIME_MSEC;
+                    wv.value.hasSourceTimestamp = true;
+                    wv.value.hasStatus = false;
+                    wv.value.value = myVar;
+                    wv.value.hasValue = true;
+                    VerifyReturn(UA_Server_write(m_uaServer, &wv));
+                }
+            }
+
+            // update reset trigger reason if any
+            string resetTriggered = util::getJSON_data(pos->second, "<xmlattr>.resetTriggered");
+            if (resetTriggered.length() > 0)
+            {
+                UA_NodeId nodeId = util::toUANodeId(m_namespace, key);
+                UA_NodeId n;
+                if (lookupChildNodeId(nodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                UA_QUALIFIEDNAME(2, "ResetTriggeredReason"),
+                                &n))
+                {
+                    UA_Variant myVar;
+                    UA_Int32 myInt32 = m_typesMgr.lookup("MTResetTriggerType", resetTriggered);
+
+                    UA_Variant_setScalar(&myVar, &myInt32, &UA_TYPES[UA_TYPES_INT32]);
+
+                    util::writeDataWithTimeStamp(m_uaServer, n, timestamp, myVar);
+                    UA_NodeId_deleteMembers(&n);
+                }
+            }
+
+        }
+        else
+            rec_count += processDeviceStreamData(deviceName, deviceUUID, componentId, pos->first, pos->second);
+    }
+
+    return rec_count;
+}
+
+void agentHandler::processMessageStream(string deviceName, string componentId, string variable, string dateTime, string message, ptree& pt)
+{
+    UA_NodeId messageNodeId;
+    string nativeCode = util::getJSON_data(pt, "<xmlattr>.nativeCode");
+    string sequence = util::getJSON_data(pt, "<xmlattr>.sequence");
+    string lastSequence = m_messageSequenceNums[variable];
+
+    if (sequence.compare(lastSequence) == 0)
+        return;
+
+    m_messageSequenceNums[variable] = sequence;
+
+    auto iter = m_messageNodes.find(variable);
+    if (iter == m_messageNodes.end())
+    {
+
+        if (VerifyReturn(UA_Server_createEvent(m_uaServer,
+                                         UA_NODEID_NUMERIC(2, MT_MTMESSAGEEVENTTYPE),
+                                         &messageNodeId)) == false)
+            return;
+
+        addCustomProperty(messageNodeId, "NativeCode", UA_NODEID_NUMERIC(0, UA_NS0ID_STRING));
+        m_eventNodes[variable] = messageNodeId;
+    }
+    else
+    {
+        messageNodeId = iter->second;
+    }
+
+    if (nativeCode.size() > 0)
+    {
+        UA_String s = util::toUAString(nativeCode);
+        VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, messageNodeId, UA_QUALIFIEDNAME(2, "NativeCode"),
+                                         &s, &UA_TYPES[UA_TYPES_STRING]));
+    }
+
+    UA_DateTime eventTime = util::toUADateTime(dateTime);
+    VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, messageNodeId, UA_QUALIFIEDNAME(0, "Time"),
+                                         &eventTime, &UA_TYPES[UA_TYPES_DATETIME]));
+
+
+    UA_UInt16 eventSeverity = 0;
+    VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, messageNodeId, UA_QUALIFIEDNAME(0, "Severity"),
+                                         &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]));
+
+
+    UA_LocalizedText eventMessage = util::toUALocalizedText(message);
+    VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, messageNodeId, UA_QUALIFIEDNAME(0, "Message"),
+                                         &eventMessage, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+
+    UA_NodeId nodeId = util::toUANodeId(m_namespace, variable);
+    UA_QualifiedName browseName;
+
+    VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, messageNodeId, UA_QUALIFIEDNAME(0, "SourceNode"),
+                                         &nodeId, &UA_TYPES[UA_TYPES_NODEID]));
+
+    if (VerifyReturn(UA_Server_readBrowseName(m_uaServer, nodeId, &browseName)))
+    {
+        VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, messageNodeId, UA_QUALIFIEDNAME(0, "SourceName"),
+                                         &browseName.name, &UA_TYPES[UA_TYPES_STRING]));
+
+        UA_QualifiedName_deleteMembers(&browseName);
+    }
+
+    VerifyReturn(UA_Server_triggerEvent(m_uaServer, messageNodeId,
+                                     nodeId,
+                                     NULL, UA_FALSE));
+}
+
+void agentHandler::processConditionStream(string deviceName, string componentId, string variable, string dateTime, string state, string message, ptree& pt)
+{
+    UA_NodeId eventNodeId;// = UA_NODEID_NUMERIC(m_namespace, 0);
+    string nativeCode = util::getJSON_data(pt, "<xmlattr>.nativeCode");
+    string sequence = util::getJSON_data(pt, "<xmlattr>.sequence");
+    string lastSequence = m_eventSequenceNums[variable];
+
+    if (sequence.compare(lastSequence) == 0)
+        return;
+
+    m_eventSequenceNums[variable] = sequence;
+
+    auto iter = m_eventNodes.find(variable);
+    if (iter == m_eventNodes.end())
+    {
+        if (VerifyReturn(UA_Server_createEvent(m_uaServer,
+                                                     UA_NODEID_NUMERIC(2, MT_MTCONDITIONEVENTTYPE),
+                                                     &eventNodeId)) == false)
+            return;
+
+        m_eventNodes[variable] = eventNodeId;
+    }
+    else
+    {
+        eventNodeId = iter->second;
+    }
+
+    UA_DateTime eventTime = util::toUADateTime(dateTime);
+    VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, eventNodeId, UA_QUALIFIEDNAME(0, "Time"),
+                                         &eventTime, &UA_TYPES[UA_TYPES_DATETIME]));
+
+
+    UA_UInt16 eventSeverity = 0;
+    UA_MTSeverityDataType mtSeverity = __UA_MTSEVERITYDATATYPE_FORCE32BIT;
+    UA_Boolean retain = false;
+    string enabledState;
+    UA_StatusCode quality;
+    string activeState;
+    string conditionName;
+
+    if (state.compare("Normal") == 0)
+    {
+        eventSeverity = 0;
+        retain = false;
+        activeState = "False";
+        mtSeverity = UA_MTSEVERITYDATATYPE_NORMAL;
+    }
+    else if (state.compare("Warning") == 0)
+    {
+        eventSeverity = 500;
+        retain = true;
+        activeState = "True";
+        mtSeverity = UA_MTSEVERITYDATATYPE_WARNING;
+    }
+    else if (state.compare("Fault") == 0)
+    {
+        eventSeverity = 1000;
+        retain = true;
+        activeState = "True";
+        mtSeverity = UA_MTSEVERITYDATATYPE_FAULT;
+    }
+
+    if (state.compare("Unavailable") == 0)
+    {
+        enabledState = "False";
+        quality = UA_STATUSCODE_BADNOTCONNECTED;
+    }
+    else
+    {
+        enabledState = "True";
+        quality = UA_STATUSCODE_GOOD;
+    }
+
+    VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, eventNodeId, UA_QUALIFIEDNAME(0, "Severity"),
+                                         &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]));
+
+    VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, eventNodeId, UA_QUALIFIEDNAME(2, "MTSeverity"),
+                                         &mtSeverity, &UA_TYPES_MTCONNECT[UA_TYPES_MTCONNECT_MTSEVERITYDATATYPE]));
+
+
+    VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, eventNodeId, UA_QUALIFIEDNAME(0, "Retain"),
+                                         &retain, &UA_TYPES[UA_TYPES_BOOLEAN]));
+
+    UA_LocalizedText text = util::toUALocalizedText(enabledState);
+    VerifyReturn(util::writeObject_scalar(m_uaServer, eventNodeId,
+                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), UA_QUALIFIEDNAME(0, "EnabledState"),
+                                          &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+
+    VerifyReturn(util::writeObject_scalar(m_uaServer, eventNodeId,
+                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), UA_QUALIFIEDNAME(0, "Quality"),
+                                          &quality, &UA_TYPES[UA_TYPES_STATUSCODE]));
+
+    text = util::toUALocalizedText(activeState);
+    VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, eventNodeId, UA_QUALIFIEDNAME(2, "ActiveState"),
+                                         &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+
+
+    UA_String dataItemId = util::toUAString(variable);
+    VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, eventNodeId, UA_QUALIFIEDNAME(2, "DataItemId"),
+                                         &dataItemId, &UA_TYPES[UA_TYPES_STRING]));
+
+
+    UA_LocalizedText eventMessage = util::toUALocalizedText(message);
+    VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, eventNodeId, UA_QUALIFIEDNAME(0, "Message"),
+                                         &eventMessage, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+
+    VerifyReturn(util::writeObject_scalar(m_uaServer, eventNodeId,
+                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), UA_QUALIFIEDNAME(0, "Comment"),
+                                          &eventMessage, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+
+
+    UA_String name = util::toUAString(deviceName);
+    VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, eventNodeId, UA_QUALIFIEDNAME(0, "ClientUserId"),
+                                     &name, &UA_TYPES[UA_TYPES_STRING]));
+
+    UA_NodeId nodeId = util::toUANodeId(m_namespace, componentId);
+    UA_QualifiedName browseName;
+    UA_NodeId n;
+
+    if (lookupChildNodeId(nodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                    UA_QUALIFIEDNAME(2, "HasMTClassType"), &n))
+    {
+        VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, eventNodeId, UA_QUALIFIEDNAME(0, "ConditionClassId"),
+                                             &n, &UA_TYPES[UA_TYPES_NODEID]));
+
+        if (VerifyReturn(UA_Server_readBrowseName(m_uaServer, n, &browseName)))
+        {
+            VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, eventNodeId, UA_QUALIFIEDNAME(0, "ConditionClassName"),
+                                             &browseName.name, &UA_TYPES[UA_TYPES_STRING]));
+
+            VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, eventNodeId, UA_QUALIFIEDNAME(2, "MTTypeName"),
+                                                 &browseName.name, &UA_TYPES[UA_TYPES_STRING]));
+        }
+
+        UA_NodeId_deleteMembers(&n);
+        UA_QualifiedName_deleteMembers(&browseName);
+    }
+
+    if (lookupChildNodeId(nodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                    UA_QUALIFIEDNAME(2, "HasMTSubClassType"), &n))
+    {
+        VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, eventNodeId, UA_QUALIFIEDNAME(0, "ConditionSubClassId"),
+                                             &n, &UA_TYPES[UA_TYPES_NODEID]));
+
+        if (VerifyReturn(UA_Server_readBrowseName(m_uaServer, n, &browseName)))
+        {
+            VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, eventNodeId, UA_QUALIFIEDNAME(0, "ConditionSubClassName"),
+                                             &browseName.name, &UA_TYPES[UA_TYPES_STRING]));
+
+            VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, eventNodeId, UA_QUALIFIEDNAME(2, "MTSubTypeName"),
+                                                 &browseName.name, &UA_TYPES[UA_TYPES_STRING]));
+        }
+
+        UA_NodeId_deleteMembers(&n);
+        UA_QualifiedName_deleteMembers(&browseName);
+    }
+
+    auto it = m_lastSeverity.find(variable);
+    if (it != m_lastSeverity.end())
+    {
+        UA_Int16 lastSeverity = it->second;
+        VerifyReturn(util::writeObject_scalar(m_uaServer, eventNodeId,
+                                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), UA_QUALIFIEDNAME(0, "LastSeverity"),
+                                              &lastSeverity, &UA_TYPES[UA_TYPES_INT16]));
+    }
+
+    nodeId = util::toUANodeId(m_namespace, variable);
+    VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, eventNodeId, UA_QUALIFIEDNAME(0, "SourceNode"),
+                                         &nodeId, &UA_TYPES[UA_TYPES_NODEID]));
+
+    if (VerifyReturn(UA_Server_readBrowseName(m_uaServer, nodeId, &browseName)))
+    {
+        VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, eventNodeId, UA_QUALIFIEDNAME(0, "SourceName"),
+                                         &browseName.name, &UA_TYPES[UA_TYPES_STRING]));
+
+        conditionName = util::toString(browseName.name);
+
+        UA_QualifiedName_deleteMembers(&browseName);
+
+        if (nativeCode.length() > 0)
+            conditionName += " " + nativeCode;
+
+        UA_String s = util::toUAString(conditionName);
+        VerifyReturn(UA_Server_writeObjectProperty_scalar(m_uaServer, eventNodeId, UA_QUALIFIEDNAME(0, "ConditionName"),
+                                         &s, &UA_TYPES[UA_TYPES_STRING]));
+    }
+
+    VerifyReturn(UA_Server_triggerEvent(m_uaServer, eventNodeId,
+                                     nodeId,
+                                     NULL, UA_FALSE));
+}
+
+void agentHandler::updateData(string variable, string dateTime, string data, ptree& pt)
 {
     UA_NodeId nodeId = util::toUANodeId(m_namespace, variable);
+
+    UA_NodeId typeNode  = m_fieldDataTypes[variable];
+    UA_UInt32 dataType = typeNode.identifier.numeric;
+
+    UA_Double myDouble;
+    UA_String myString;
+    UA_UInt32 myInt32;
 
     if (data.compare("UNAVAILABLE") == 0)
     {
@@ -713,27 +1179,26 @@ void agentHandler::writeData(string variable, string dateTime, string data)
         wv.attributeId = UA_ATTRIBUTEID_VALUE;
         wv.value.status = UA_STATUSCODE_BADNOTCONNECTED;
         wv.value.hasStatus = true;
-        UA_Server_write(m_uaServer, &wv);
+        VerifyReturn(UA_Server_write(m_uaServer, &wv));
+
+        if (dataType == UA_NS0ID_ENUMVALUETYPE)
+        {
+            myString = UA_STRING("");
+            util::writeObject_scalar(m_uaServer, nodeId,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(2, "ValueAsText"),
+                                     &myString, &UA_TYPES[UA_TYPES_STRING]);
+        }
         return;
     }
 
     UA_Variant myVar;
     UA_Variant_init(&myVar);
 
-    UA_NodeId typeNode  = m_fieldDataTypes[variable];
-
-    UA_Double myDouble;
-    UA_String myString;
-    UA_UInt32 myInt32;
-    UA_NodeId n;
-
-    UA_UInt32 dataType = typeNode.identifier.numeric;
     switch (dataType)
     {
     case UA_NS0ID_CONDITIONTYPE:
-        // to do
+        // handle by updateCondition
         return;
-        break;
 
     case UA_NS0ID_DOUBLE:
         myDouble = atof(data.c_str());
@@ -741,14 +1206,34 @@ void agentHandler::writeData(string variable, string dateTime, string data)
         break;
 
     case MT_THREESPACESAMPLEDATATYPE:
-        // to do
-        return;
+    {
+        UA_ThreeSpaceSampleDataType sample;
+        double x, y, z;
+
+        if (sscanf(data.c_str(), "%lf %lf %lf", &x, &y, &z) != 3)
+            sample.x = sample.y = sample.z = std::numeric_limits<double>::quiet_NaN();
+        else
+        {
+            sample.x = x;
+            sample.y = y;
+            sample.z = z;
+        }
+        UA_Variant_setScalar(&myVar, &sample, &UA_TYPES_MTCONNECT[UA_TYPES_MTCONNECT_THREESPACESAMPLEDATATYPE]);
         break;
+    }
 
     case MT_ASSETEVENTDATATYPE:
-        // to do
-        return;
+    {
+        UA_AssetEventDataType assetEvent;
+        string assetId = data;
+        string assetType = util::getJSON_data(pt, "<xmlattr>.assetType");
+
+        assetEvent.assetId = util::toUAString(assetId);
+        assetEvent.assetType = util::toUAString(assetType);
+
+        UA_Variant_setScalar(&myVar, &assetEvent, &UA_TYPES_MTCONNECT[UA_TYPES_MTCONNECT_ASSETEVENTDATATYPE]);
         break;
+    }
 
     case UA_NS0ID_ENUMVALUETYPE:
         myInt32 = m_typesMgr.lookup(variable, nodeId, data);
@@ -759,8 +1244,14 @@ void agentHandler::writeData(string variable, string dateTime, string data)
             cerr << "cannot map " << data << endl;
             return;
         }
+        else
+        {
+            myString = util::toUAString(data);
+            util::writeObject_scalar(m_uaServer, nodeId,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(2, "ValueAsText"),
+                                     &myString, &UA_TYPES[UA_TYPES_STRING]);
+        }
 
-//        cerr << "map " << data << " to " << myInt32 << endl;
         UA_Variant_setScalar(&myVar, &myInt32, &UA_TYPES[UA_TYPES_UINT32]);
         break;
 
@@ -770,20 +1261,17 @@ void agentHandler::writeData(string variable, string dateTime, string data)
         break;
 
     default:
-        if (findChildId(nodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(0, "EnumStrings"), &n))
+        if (lookupChildNodeId(nodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(0, "EnumStrings"), nullptr))
         {
             myInt32 = m_typesMgr.lookup(variable, nodeId, data);
             if (myInt32 >= 0)
             {
                 UA_Variant_setScalar(&myVar, &myInt32, &UA_TYPES[UA_TYPES_UINT32]);
 
-                UA_Variant v;
-
-                myString = util::toUAString(data);
-                UA_Variant_setScalar(&v, &myString, &UA_TYPES[UA_TYPES_STRING]);
-
-                if (findChildId(nodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(2, "ValueAsText"), &n))
-                        UA_Server_writeValue(m_uaServer, n, v);
+                myString = util::toUAString(data);               
+                util::writeObject_scalar(m_uaServer, nodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                         UA_QUALIFIEDNAME(2, "ValueAsText"),
+                                         &myString, &UA_TYPES[UA_TYPES_STRING]);
 
                 cerr << "map " << data << " to " << myInt32 << endl;
 
@@ -800,29 +1288,10 @@ void agentHandler::writeData(string variable, string dateTime, string data)
         break;
     }
 
-    struct tm tm;
-    strptime(dateTime.c_str(), "%Y-%m-%dT%H:%M:%S", &tm);
-    tm.tm_isdst = -1;  
-    time_t dt = mktime(&tm);
-
-    unsigned long pos = dateTime.find_first_of(".");
-    int milliSec = std::stoi(dateTime.substr(pos + 1, 3));
-
-    UA_WriteValue wv;
-    UA_WriteValue_init(&wv);
-    wv.nodeId = nodeId;
-    wv.attributeId = UA_ATTRIBUTEID_VALUE;
-
-    wv.value.sourceTimestamp = UA_DateTime_fromUnixTime(dt) + milliSec * UA_DATETIME_MSEC;
-    wv.value.hasSourceTimestamp = true;
-    wv.value.hasStatus = false;
-    wv.value.value = myVar;
-    wv.value.hasValue = true;
-    UA_StatusCode status = UA_Server_write(m_uaServer, &wv);
+    util::writeDataWithTimeStamp(m_uaServer, nodeId, dateTime, myVar);
 }
 
-
-bool agentHandler::findChildId(UA_NodeId &parentNode, UA_NodeId referenceType,
+bool agentHandler::lookupChildNodeId(UA_NodeId &parentNode, UA_NodeId referenceType,
             const UA_QualifiedName targetName, UA_NodeId *result)
 {
     UA_RelativePathElement rpe;
@@ -836,105 +1305,43 @@ bool agentHandler::findChildId(UA_NodeId &parentNode, UA_NodeId referenceType,
     UA_BrowsePath_init(&bp);
     bp.startingNode = parentNode;
     bp.relativePath.elementsSize = 1;
-    bp.relativePath.elements = &rpe;    //clion complains but is ok
+    bp.relativePath.elements = &rpe;
 
     UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(m_uaServer, &bp);
     if(bpr.statusCode != UA_STATUSCODE_GOOD ||
         bpr.targetsSize < 1)
         return false;
 
+    if (result != nullptr)
+        UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, result);
 
-    UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, result);
     UA_BrowsePathResult_deleteMembers(&bpr);
-
     return true;
-}
-
-bool agentHandler::writeNodeData(UA_NodeId &nodeId, string result)
-{
-    UA_Variant data;
-    UA_Variant_init(&data);
-
-    UA_String value = util::toUAString(result);
-
-    UA_Variant_setScalar(&data, &value, &UA_TYPES[UA_TYPES_STRING]);
-
-    UA_Server_writeValue(m_uaServer, nodeId, data);
-
-    return true;
-}
-
-string agentHandler::toCamelCase(string &input)
-{
-    const char *line = input.c_str();
-    char *ret = (char *)malloc(input.size() + 1);
-    char *p = ret;
-    bool wordStart = true;
-
-    for (size_t index = 0; index < input.size(); index++)
-    {
-        char c = line[index];
-        if (isalpha(c))
-        {
-            if (wordStart)
-            {
-                *p++ = toupper(c);
-                wordStart = false;
-            }
-            else
-                *p++ = tolower(c);
-        }
-        else
-        {
-            // allow only ' ' and _ to separate words
-            // otherwise take the last word
-            if (c != ' ' && c != '_')
-            {
-                *p = '\0';
-                p = ret;
-            }
-            wordStart = true;
-        }
-    }
-
-    *p = '\0';
-    string result = string(ret);
-    free(ret);
-
-    return result;
 }
 
 void agentHandler::getEventTypes(UA_NodeId eventRootNode, UA_NodeId eventTypeNode, map<string, UA_NodeId> &results)
 {
-    UA_NodeId ret = { 0 };
-    UA_ReferenceDescription *ref;
-
-    UA_BrowseResult res = { 0 };
-    UA_BrowseDescription b_desc = { 0 };
+    UA_BrowseDescription b_desc;
 
     UA_BrowseDescription_init(&b_desc);
     b_desc.nodeId = eventRootNode;
     b_desc.resultMask = UA_BROWSERESULTMASK_ALL;
     b_desc.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
 
-    res = UA_Server_browse(m_uaServer, 0, &b_desc);
-    if (res.referencesSize < 1)
-        goto err;
+    UA_BrowseResult res = UA_Server_browse(m_uaServer, 0, &b_desc);
+    if (res.referencesSize >= 1)
+        for (size_t i=0; i<res.referencesSize; i++)
+        {
+            UA_ReferenceDescription *ref = &(res.references[i]);
 
-    for (int i=0; i<res.referencesSize; i++)
-    {
-        ref = &(res.references[i]);
+            results.insert(make_pair(util::toString(ref->displayName.text), eventTypeNode));
+        }
 
-        results.insert(make_pair(util::toString(ref->displayName.text), eventTypeNode));
-    }
-
-  err:
     UA_BrowseDescription_deleteMembers(&b_desc);
     UA_BrowseResult_deleteMembers(&res);
 }
 
-
-UA_NodeId agentHandler::addProperty(UA_NodeId parentNode, string propertyName, string value)
+UA_NodeId agentHandler::addCustomPropertyWithData(UA_NodeId parentNode, string propertyName, string value)
 {
     UA_NodeId outNodeId;
     UA_VariableAttributes mnAttr = UA_VariableAttributes_default;
@@ -944,7 +1351,7 @@ UA_NodeId agentHandler::addProperty(UA_NodeId parentNode, string propertyName, s
     UA_Variant_setScalar(&mnAttr.value, &data, &UA_TYPES[UA_TYPES_STRING]);
 
     mnAttr.displayName = util::toUALocalizedText(propertyName);
-    UA_Server_addVariableNode(m_uaServer,
+    VerifyReturn(UA_Server_addVariableNode(m_uaServer,
                               UA_NODEID_NUMERIC(m_namespace, 0),
                               parentNode,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
@@ -952,15 +1359,33 @@ UA_NodeId agentHandler::addProperty(UA_NodeId parentNode, string propertyName, s
                               UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
                               mnAttr,
                               NULL,
-                              &outNodeId);
+                              &outNodeId));
 
     return outNodeId;
 }
 
-
-void agentHandler::addNotifier(UA_NodeId targetNode, UA_NodeId srcNode)
+UA_NodeId agentHandler::addCustomProperty(UA_NodeId parentNode, string propertyName, UA_NodeId dataType)
 {
-//    cout << targetNode.identifier.numeric << " -> " << srcNode.identifier.numeric << endl;
+    UA_NodeId outNodeId;
+    UA_VariableAttributes mnAttr = UA_VariableAttributes_default;
+    mnAttr.dataType = dataType;
+
+    mnAttr.displayName = util::toUALocalizedText(propertyName);
+    VerifyReturn(UA_Server_addVariableNode(m_uaServer,
+                              UA_NODEID_NUMERIC(m_namespace, 0),
+                              parentNode,
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                              util::toUAQualifiedName(2, propertyName),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                              mnAttr,
+                              NULL,
+                              &outNodeId));
+
+    return outNodeId;
+}
+
+void agentHandler::addNotifier(UA_NodeId targetNode, UA_NodeId srcNode, bool setSrcNotifier)
+{
     if (targetNode.identifier.numeric == srcNode.identifier.numeric)
         return;
 
@@ -976,7 +1401,7 @@ void agentHandler::addNotifier(UA_NodeId targetNode, UA_NodeId srcNode)
     UA_Server_addReference(m_uaServer, targetNode,
                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASNOTIFIER), targetExpId, true);
 
-    UA_Server_writeEventNotifier(m_uaServer, targetNode, UA_EVENTNOTIFIERTYPE_SUBSCRIBETOEVENTS);
+    VerifyReturn(UA_Server_writeEventNotifier(m_uaServer, setSrcNotifier ? srcNode : targetNode, UA_EVENTNOTIFIERTYPE_SUBSCRIBETOEVENTS));
 }
 
 void agentHandler::addNotifierToAll(vector<UA_NodeId> & nodePath)
@@ -987,79 +1412,137 @@ void agentHandler::addNotifierToAll(vector<UA_NodeId> & nodePath)
         if (it == nodePath.end())
             break;
 
-        addNotifier(*n, *it);
+        addNotifier(*n, *it, true);
     }
 }
 
-
-bool agentHandler::updateData()
+void agentHandler::addMTClassReferences(UA_NodeId nextId, UA_UInt32 classParentId, string displayName, string subType)
 {
-    bool ret = true;
+    UA_ExpandedNodeId targetExpId;
 
-    try {
+    targetExpId.nodeId       = nextId;
+    targetExpId.namespaceUri = UA_STRING_NULL;
+    targetExpId.serverIndex  = 0;
 
-        // each line is one component stream
-        ptree& devices = m_ptree.get_child("MTConnectStreams.Streams");
-        for (ptree::iterator pos = devices.begin(); pos != devices.end(); pos++)
+    string classTypeName = displayName + "ClassType";
+    UA_UInt32 classTypeId = mtIDMap[classTypeName];
+    if (classTypeId == 0)
+    {
+        UA_NodeId objectTypeNodeId;
+        UA_NodeId parentClassNode = UA_NODEID_NUMERIC(2, classParentId);
+        if (!lookupChildNodeId(parentClassNode,
+                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                    util::toUAQualifiedName(m_namespace, classTypeName),
+                        &objectTypeNodeId))
         {
-            ptree& device = pos->second;
 
-            string deviceName = getJSON_data(device, "<xmlattr>.name");
-            string deviceUUID = getJSON_data(device, "<xmlattr>.uuid");
+            UA_ObjectTypeAttributes oAttr = UA_ObjectTypeAttributes_default;
+            oAttr.displayName = util::toUALocalizedText(classTypeName);
 
-            int rec_count = 0;
-
-            for (ptree::iterator p = device.begin(); p != device.end(); p++)
-            {
-                string key = p->first;
-                if (key.compare("ComponentStream") == 0)
-                {
-                    ptree &stream = p->second;
-
-                    string componentId = getJSON_data(stream, "<xmlattr>.componentId");
-
-                    for (ptree::iterator s = stream.begin(); s != stream.end(); s++)
-                    {
-                        if (s->first.compare("<xmlattr>"))
-                        {
-                            rec_count += updateDeviceData(deviceName, deviceUUID, componentId, s->second);
-                        }
-                    }
-                }
-            }
+            VerifyReturn(UA_Server_addObjectTypeNode(m_uaServer,
+                                        util::toUANodeId(m_namespace, classTypeName),
+                                        UA_NODEID_NUMERIC(2, classParentId),
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                        util::toUAQualifiedName(m_namespace, classTypeName),
+                                        oAttr,
+                                        NULL,
+                                        &objectTypeNodeId));
         }
+
+        UA_NodeId_deleteMembers(&objectTypeNodeId);
+        VerifyReturn(UA_Server_addReference(m_uaServer,
+                      util::toUANodeId(m_namespace, classTypeName),
+                      UA_NODEID_NUMERIC(2, MT_HASMTCLASSTYPE), targetExpId, false));
+
     }
-    catch (exception& e)
+    else
+        VerifyReturn(UA_Server_addReference(m_uaServer,
+                      UA_NODEID_NUMERIC(2, classTypeId),
+                      UA_NODEID_NUMERIC(2, MT_HASMTCLASSTYPE), targetExpId, false));
+
+    if (subType.length() > 0)
     {
-        cerr << e.what() << endl;
-        cerr << m_xml << endl;
-        ret = false;
-    }
+        // add MTSubTypeName property
+        addCustomPropertyWithData(nextId, "MTSubTypeName", subType);
 
-    return ret;
-}
-
-int agentHandler::updateDeviceData(const string &deviceName, const string &deviceUUID, const string &componentId, ptree &pt)
-{
-    int rec_count = 0;
-
-    // output first any unique subtrees
-    for (ptree::iterator pos = pt.begin(); pos != pt.end(); pos++)
-    {
-        string dataItemId = getJSON_data(pos->second, "<xmlattr>.dataItemId");
-
-        if (dataItemId.length() > 0)
+        string subTypeCamelCase = util::util::toCamelCase(subType);
+        string subClassTypeName = subTypeCamelCase + "SubClassType";
+        UA_UInt32 subClassTypeId = mtIDMap[subClassTypeName];
+        if (subClassTypeId == 0)
         {
-            string timestamp = getJSON_data(pos->second, "<xmlattr>.timestamp");
-            string dataPoint = pos->second.data();
+            UA_NodeId objectTypeNodeId;
+            UA_NodeId parentClassNode = UA_NODEID_NUMERIC(2, MT_MTDATAITEMSUBCLASSTYPE);
 
-            string key = deviceUUID + "." + dataItemId;
+            if (!lookupChildNodeId(parentClassNode, UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                             util::toUAQualifiedName(m_namespace, subClassTypeName),
+                             &objectTypeNodeId))
+            {
+                UA_ObjectTypeAttributes oAttr = UA_ObjectTypeAttributes_default;
+                oAttr.displayName = util::toUALocalizedText(subClassTypeName);
+                VerifyReturn(UA_Server_addObjectTypeNode(m_uaServer,
+                                            util::toUANodeId(m_namespace, subClassTypeName),
+                                            UA_NODEID_NUMERIC(2, MT_MTDATAITEMSUBCLASSTYPE),
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                            util::toUAQualifiedName(m_namespace, subClassTypeName),
+                                            oAttr,
+                                            NULL,
+                                            &objectTypeNodeId));
+            }
 
-            writeData(key, timestamp, dataPoint);
+            UA_NodeId_deleteMembers(&objectTypeNodeId);
+            VerifyReturn(UA_Server_addReference(m_uaServer,
+                          util::toUANodeId(m_namespace, subClassTypeName),
+                          UA_NODEID_NUMERIC(2, MT_HASMTSUBCLASSTYPE), targetExpId, false));
+
         }
         else
-            rec_count += updateDeviceData(deviceName, deviceUUID, componentId, pos->second);
+            VerifyReturn(UA_Server_addReference(m_uaServer,
+                          UA_NODEID_NUMERIC(2, subClassTypeId),
+                          UA_NODEID_NUMERIC(2, MT_HASMTSUBCLASSTYPE), targetExpId, false));
     }
+}
 
-    return rec_count;
+void agentHandler::setMTTypeNameAndId(UA_NodeId &nextId, string type, string id)
+{
+    UA_String value;
+
+    value = util::toUAString(id);
+    util::writeObject_scalar(m_uaServer, nextId,
+                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(2, "XmlId"),
+                             &value, &UA_TYPES[UA_TYPES_STRING]);
+
+    value = util::toUAString(type);
+    util::writeObject_scalar(m_uaServer, nextId,
+                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), UA_QUALIFIEDNAME(2, "MTTypeName"),
+                             &value, &UA_TYPES[UA_TYPES_STRING]);
+}
+
+void agentHandler::researchDisplayNames(ptree &pt, multiset<string> &appendBy)
+{
+    // collect all the display names at the same level
+    for (ptree::iterator pos = pt.begin(); pos != pt.end(); pos++)
+    {
+        string s = pos->first;
+        if (s.compare("<xmlattr>") == 0 || s.compare("Description") == 0)
+            continue;
+
+        if (s.compare("DataItem") == 0)
+        {
+            s = util::getJSON_data(pos->second, "<xmlattr>.type");
+            s = util::toCamelCase(s);
+
+            string subtype = util::getJSON_data(pos->second, "<xmlattr>.subType");
+            if (subtype.length() > 0)
+                s = util::toCamelCase(subtype) + s;
+
+            string category = util::getJSON_data(pos->second, "<xmlattr>.category");
+            if (category.compare("CONDITION") == 0)
+                s += "Condition";
+        }
+
+        string name = util::getJSON_data(pos->second, "<xmlattr>.name");
+
+        appendBy.insert(s); // natural
+        appendBy.insert(s + "[" + name + "]"); // appended name to distinguish other same natural name
+    }
 }

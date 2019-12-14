@@ -16,6 +16,7 @@
 #include "worker.h"
 #include "nodeset.h"
 #include "mtconnect_ids.h"
+#include "types_mtconnect_generated.h"
 
 using namespace boost;
 
@@ -34,13 +35,22 @@ static Worker *createWorker(UA_Server *server, UA_NodeId &nodeId, string outputL
 
 
 static volatile UA_Boolean running = true;
-static void stopHandler(int sig) {
+static void stopHandler(int sig)
+{
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "received ctrl-c");
     running = false;
 }
 
 
-int main(int argc, char** argv) {
+static UA_DataTypeArray customTypesArray =
+{
+    nullptr,
+    UA_TYPES_MTCONNECT_COUNT,
+    UA_TYPES_MTCONNECT
+};
+
+int main(int argc, char** argv)
+{
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
@@ -61,7 +71,11 @@ int main(int argc, char** argv) {
     // settings.restore(settingsName);
 
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+
+    config->customDataTypes = &customTypesArray;
+
     if (nodeset(server) != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Could not add the nodeset. "
             "Check previous output for any error.");
@@ -70,7 +84,8 @@ int main(int argc, char** argv) {
 
 
     UA_NodeId topId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    std::vector<Worker*> worker_pool;
+    vector<Worker*> worker_pool;
+    vector<thread*> thread_pool;
 
     boost::thread *bthread = nullptr;
     if (argc != 2)
@@ -84,6 +99,8 @@ int main(int argc, char** argv) {
         worker_pool.push_back(worker);
 
         bthread = new boost::thread(boost::bind(&Worker::run, worker));
+
+        thread_pool.push_back(bthread);
     }
     else {
 
@@ -128,8 +145,7 @@ int main(int argc, char** argv) {
 
             bthread = new boost::thread(boost::bind(&Worker::run, worker));
 
-            if (bthread == nullptr)
-                return -1;
+            thread_pool.push_back(bthread);
         }
 
     }
@@ -138,7 +154,12 @@ int main(int argc, char** argv) {
     UA_StatusCode retval = UA_Server_run(server, &running);
 
     UA_Server_delete(server);
-    if (bthread != nullptr)
-	delete bthread;
+
+    for (size_t i=0; i<thread_pool.size(); i++)
+        delete thread_pool[i];
+
+    for (size_t i=0; i<worker_pool.size(); i++)
+        delete worker_pool[i];
+
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

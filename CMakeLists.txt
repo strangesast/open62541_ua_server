@@ -15,7 +15,7 @@ FIND_PACKAGE(open62541 REQUIRED)
 INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 add_compile_options(-std=c++11)
 
-ADD_EXECUTABLE(opcua-MTServer opcua_server.cpp types_mgr.cpp mtconnect_ids.cpp nodeset.cpp agenthandler.cpp httpreader.cpp settings.cpp worker.cpp)
+ADD_EXECUTABLE(opcua-MTServer opcua_server.cpp types_mgr.cpp mtconnect_ids.cpp nodeset.cpp agenthandler.cpp httpreader.cpp settings.cpp worker.cpp util.cpp types_mtconnect_generated.cpp)
 
 IF (WIN32)
     TARGET_LINK_LIBRARIES( opcua-MTServer LINK_PUBLIC ${Boost_LIBRARIES} Boost::thread Boost::filesystem OpenSSL::SSL ${OPENSSL_CRYPTO_LIBRARY} ws2_32 mswsock advapi32)
