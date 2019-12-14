@@ -50,6 +50,7 @@ public:
     static string getJSON_data(ptree &tree, string path);
     static bool isLeafNode(ptree::iterator &p);
     static void dump(ptree &pt);
+    static void strptime(const char* s, const char* f, struct tm* tm);
 
     static void writeDataWithTimeStamp(UA_Server *server, UA_NodeId nodeId, string dateTime, UA_Variant &myVar);
     static bool writeNodeData(UA_Server *server, UA_NodeId &nodeId, string result);

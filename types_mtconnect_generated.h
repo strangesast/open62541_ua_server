@@ -20,7 +20,7 @@ _UA_BEGIN_DECLS
  * These descriptions are used during type handling (copying, deletion,
  * binary encoding, ...). */
 #define UA_TYPES_MTCONNECT_COUNT 32
-extern UA_EXPORT const UA_DataType UA_TYPES_MTCONNECT[UA_TYPES_MTCONNECT_COUNT];
+extern const UA_DataType UA_TYPES_MTCONNECT[UA_TYPES_MTCONNECT_COUNT];
 
 /**
  * InterfaceStatusDataType

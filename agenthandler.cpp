@@ -22,6 +22,10 @@
 #include "util.h"
 #include "types_mtconnect_generated.h"
 
+#include <time.h>
+#include <iomanip>
+#include <sstream>
+
 namespace fs = boost::filesystem;
 
 agentHandler::agentHandler()
@@ -838,7 +842,7 @@ int agentHandler::processDeviceStreamData(const string &deviceName, const string
 
                 struct tm tm;
 
-                strptime(timestamp.c_str(), "%Y-%m-%dT%H:%M:%S", &tm);
+                util::strptime(timestamp.c_str(), "%Y-%m-%dT%H:%M:%S", &tm);
                 tm.tm_isdst = -1;
                 time_t dt = mktime(&tm);
 
