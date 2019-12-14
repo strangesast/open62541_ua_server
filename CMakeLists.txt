@@ -14,7 +14,6 @@ project(opcua-MTServer)
 cmake_minimum_required(VERSION 3.10)
 FIND_PACKAGE(Boost REQUIRED COMPONENTS thread filesystem log)
 FIND_PACKAGE(OpenSSL REQUIRED)
-#FIND_PACKAGE(open62541 REQUIRED)
 INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} ${open62541_INCLUDE_DIR} )
 add_compile_options(-std=c++11)
 
@@ -32,6 +31,8 @@ IF (WIN32)
     SET (CPACK_NSIS_MODIFY_PATH ON)
 
 ELSE()
+
+FIND_PACKAGE(open62541 REQUIRED)
 
     TARGET_LINK_LIBRARIES( opcua-MTServer LINK_PUBLIC ${Boost_LIBRARIES} OpenSSL::SSL open62541::open62541)
 
