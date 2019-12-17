@@ -23,11 +23,11 @@ using namespace boost;
 static Settings settings;
 static string settingsName;
 
-static Worker *createWorker(UA_Server *server, UA_NodeId &nodeId, string outputLocation, string uri, string poll)
+static Worker *createWorker(UA_Server *server, UA_NodeId &nodeId, string uri, string poll)
 {
     Worker *worker = new Worker();
 
-    if (!worker->setup(server, nodeId, &settings, outputLocation, uri, poll))
+    if (!worker->setup(server, nodeId, &settings, uri, poll))
         return nullptr;
 
     return worker;
@@ -90,11 +90,10 @@ int main(int argc, char** argv)
     boost::thread *bthread = nullptr;
     if (argc != 2)
     {
-        string outputLocation = "/tmp";
         string uri = argv[1];
         string poll = argc > 2 ? argv[2] : "60";
 
-        Worker *worker = createWorker(server, topId, outputLocation, uri, poll);
+        Worker *worker = createWorker(server, topId, uri, poll);
 
         if (worker == nullptr)
             return -1;
@@ -134,15 +133,13 @@ int main(int argc, char** argv)
                 return -1;
             }
 
-            string outputLocation = "/tmp";
-
             string uri = vec[0];
             if (uri[0] == '#')
                 continue;
 
             string poll = argc > 1 ? vec[1] : "60";
 
-            Worker *worker = createWorker(server, topId, outputLocation, uri, poll);
+            Worker *worker = createWorker(server, topId, uri, poll);
 
             if (worker == nullptr)
                 continue;
@@ -153,7 +150,6 @@ int main(int argc, char** argv)
 
             thread_pool.push_back(bthread);
         }
-
     }
 
     if (worker_pool.size() == 0)

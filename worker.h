@@ -19,7 +19,6 @@ private:
     int    m_namespace;
 
 
-    string      m_outputLocation;
     string      m_uri;
     int         m_interval;
     int         m_poll_count;
@@ -29,7 +28,7 @@ public:
     Worker();
     ~Worker();
 
-    bool setup(UA_Server *uaServer, UA_NodeId topNode, Settings *settings, string outputLocation, string uri, string interval);
+    bool setup(UA_Server *uaServer, UA_NodeId topNode, Settings *settings, string uri, string interval);
     bool setMetaInfo();
 
     void run();

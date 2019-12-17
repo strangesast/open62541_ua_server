@@ -21,9 +21,8 @@ Worker::~Worker()
     m_reader.close();
 }
 
-bool Worker::setup(UA_Server *uaServer, UA_NodeId topNode, Settings *settings, string outputLocation, string uri, string interval)
+bool Worker::setup(UA_Server *uaServer, UA_NodeId topNode, Settings *settings, string uri, string interval)
 {
-    m_outputLocation = outputLocation;
     m_uri = uri;
     m_settings = settings;
     m_uaServer = uaServer;
@@ -36,21 +35,10 @@ bool Worker::setup(UA_Server *uaServer, UA_NodeId topNode, Settings *settings, s
     }
 
     m_namespace = UA_Server_addNamespace(m_uaServer, uri.c_str());
-//    m_namespace = settings->get(uri);
     std::cout << "----------------" << endl;
-//    std::cout << "Output Location: " << outputLocation << endl;
     std::cout << "Agent Uri:       " << uri << endl;
     std::cout << "Poll Interval:   " << interval << endl;
     std::cout << "namespace : " << m_namespace << endl;
-
-#if 0
-    if (!boost::filesystem::exists(outputLocation))
-    {
-        std::cerr <<
-            "Location " << outputLocation << " does not exist!\n";
-        return false;
-    }
-#endif
 
     m_handler.setup(m_uaServer, m_topNode, m_namespace);
     if (m_reader.parseUri(uri))

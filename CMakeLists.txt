@@ -6,7 +6,7 @@ IF (WIN32)
     set(Boost_DEBUG                 ON)
     set(OPENSSL_USE_STATIC_LIBS     TRUE)
     set(open62541_INCLUDE_DIR               c:/open62541/include)
-    set(open62541_LIBRARY               c:/open62541/lib/libopen62541.dll.a)
+    set(open62541_LIBRARY               c:/open62541/lib/libopen62541.a)
 
 ENDIF()
 
@@ -15,7 +15,7 @@ cmake_minimum_required(VERSION 3.10)
 FIND_PACKAGE(Boost REQUIRED COMPONENTS thread filesystem log)
 FIND_PACKAGE(OpenSSL REQUIRED)
 INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} ${open62541_INCLUDE_DIR} )
-add_compile_options(-std=c++11)
+add_compile_options(-w -std=c++11)
 
 ADD_EXECUTABLE(opcua-MTServer opcua_server.cpp types_mgr.cpp mtconnect_ids.cpp nodeset.cpp agenthandler.cpp httpreader.cpp settings.cpp worker.cpp util.cpp types_mtconnect_generated.cpp)
 
