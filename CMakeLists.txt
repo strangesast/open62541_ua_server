@@ -1,57 +1,80 @@
-IF (WIN32)
-    set(Boost_USE_STATIC_LIBS       ON)  # only find static libs
-    set(Boost_USE_MULTITHREADED     ON)
-    set(Boost_USE_STATIC_RUNTIME    OFF)
-    set(Boost_ARCHITECTURE          "-x64")
-    set(Boost_DEBUG                 ON)
-    set(OPENSSL_USE_STATIC_LIBS     TRUE)
-    set(open62541_INCLUDE_DIR               c:/open62541/include)
-    set(open62541_LIBRARY               c:/open62541/lib/libopen62541.a)
+PROJECT(opcua-MTServer)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.10)
 
+# Boost/openSSL/open62541 settings
+
+SET(Boost_USE_STATIC_LIBS       ON)  # only find static libs
+SET(Boost_USE_MULTITHREADED     ON)
+SET(Boost_USE_STATIC_RUNTIME    OFF)
+#SET(Boost_DEBUG                 ON)
+SET(Boost_NO_BOOST_CMAKE ON)
+
+IF (WIN32)
+    SET(Boost_ARCHITECTURE          "-x64")
+    SET(open62541_INCLUDE_DIR               c:/open62541/include)
+    SET(open62541_LIBRARY               c:/open62541/lib/libopen62541.a)
+ELSEIF(APPLE)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden")
+ELSEIF(UNIX)
+#    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static")
 ENDIF()
 
-project(opcua-MTServer)
-cmake_minimum_required(VERSION 3.10)
 FIND_PACKAGE(Boost REQUIRED COMPONENTS thread filesystem log)
+
+# openSSL settings
+IF (WIN32)
+    SET(OPENSSL_USE_STATIC_LIBS TRUE)
+ELSE()
+    SET(OPENSSL_USE_STATIC_LIBS FALSE)
+ENDIF()
+
 FIND_PACKAGE(OpenSSL REQUIRED)
+
+#SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+#FIND_PACKAGE(ZLIB REQUIRED)
+#FIND_PACKAGE(DLLIB)
+
+
 INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} ${open62541_INCLUDE_DIR} )
-add_compile_options(-w -std=c++11)
+
+ADD_COMPILE_OPTIONS(-w -std=c++11)
 
 ADD_EXECUTABLE(opcua-MTServer opcua_server.cpp types_mgr.cpp mtconnect_ids.cpp nodeset.cpp agenthandler.cpp httpreader.cpp settings.cpp worker.cpp util.cpp types_mtconnect_generated.cpp)
 
 IF (WIN32)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static")
+    SET(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -static")
+
     TARGET_LINK_LIBRARIES( opcua-MTServer LINK_PUBLIC ${Boost_LIBRARIES} Boost::thread Boost::filesystem OpenSSL::SSL ${OPENSSL_CRYPTO_LIBRARY} ${open62541_LIBRARY} ws2_32 mswsock advapi32)
 
-    install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION "bin" COMPONENT applications)
+    INSTALL(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION "bin" COMPONENT applications)
 
     #
     # CPACK macros below here
     #
-    set (CPACK_GENERATOR NSIS)
+    SET (CPACK_GENERATOR NSIS)
     SET (CPACK_NSIS_MODIFY_PATH ON)
 
 ELSE()
 
 FIND_PACKAGE(open62541 REQUIRED)
+#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libstdc++")
+TARGET_LINK_LIBRARIES( opcua-MTServer LINK_PUBLIC ${Boost_LIBRARIES} OpenSSL::SSL open62541::open62541 ${ZLIB_LIBRARIES} ${CMAKE_DL_LIBS} )
 
-    TARGET_LINK_LIBRARIES( opcua-MTServer LINK_PUBLIC ${Boost_LIBRARIES} OpenSSL::SSL open62541::open62541)
+    INSTALL(TARGETS ${PROJECT_NAME} DESTINATION ".")
 
-    install(TARGETS ${PROJECT_NAME} DESTINATION ".")
-
-    set (CPACK_GENERATOR ZIP)
+    SET (CPACK_GENERATOR ZIP)
 ENDIF()
 
-set (CPACK_PACKAGE_NAME "opcua-MTServer")
-set (CPACK_PACKAGE_VENDOR "MTConnect")
-set (CPACK_PACKAGE_DESCRIPTION_SUMMARY "opcua-MTServer - OPCUA gateway server to MTConnect agents")
-set (CPACK_PACKAGE_VERSION "1.0.0")
-set (CPACK_PACKAGE_VERSION_MAJOR "1")
-set (CPACK_PACKAGE_VERSION_MINOR "0")
-set (CPACK_PACKAGE_VERSION_PATCH "0")
-set (CPACK_PACKAGE_INSTALL_DIRECTORY "MTConnect OPCUA Server")
+SET (CPACK_PACKAGE_NAME "opcua-MTServer")
+SET (CPACK_PACKAGE_VENDOR "MTConnect")
+SET (CPACK_PACKAGE_DESCRIPTION_SUMMARY "opcua-MTServer - OPCUA gateway server to MTConnect agents")
+SET (CPACK_PACKAGE_VERSION "1.0.0")
+SET (CPACK_PACKAGE_VERSION_MAJOR "1")
+SET (CPACK_PACKAGE_VERSION_MINOR "0")
+SET (CPACK_PACKAGE_VERSION_PATCH "0")
+SET (CPACK_PACKAGE_INSTALL_DIRECTORY "MTConnect OPCUA Server")
 
 
 # Must be after the last CPACK macros
-include(CPack)
+INCLUDE(CPack)
 
