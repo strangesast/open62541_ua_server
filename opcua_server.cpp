@@ -59,9 +59,9 @@ int main(int argc, char** argv)
     {
         std::cerr <<
             "Usage: " << endl <<
-            "    OPCUA-MTServer <uri> [poll cycle in seconds - default is 60]" << endl <<
+            "    OPCUA-MTServer <uri> <poll cycle in seconds>" << endl <<
             "Example:" << endl <<
-            "    OPCUA-MTServer https://smstestbed.nist.gov/vds" << endl <<
+            "    OPCUA-MTServer https://smstestbed.nist.gov/vds 60" << endl <<
             "or" << endl <<
             "    OPCUA-MTServer <config file>" << endl;
         return -1;
