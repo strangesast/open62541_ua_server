@@ -31,11 +31,7 @@ Example:  opcua-MTServer opcua.cfg
 
 opcua.cfg allows connections to multiple MTConnect Agents. Each line contains <agent's url> and its poll frequency in seconds.
 
-Binary Releases v1.0.0rc1
+Binary Releases 
 -------
 
-Download [MacOS Installation](https://raw.githubusercontent.com/mtconnect/open62541_ua_server/v1.0.0rc1/binaries/MacOS/opcua-MTServer-1.0.0-Darwin.zip)
-
-Download [Ubuntu Installation](https://raw.githubusercontent.com/mtconnect/open62541_ua_server/v1.0.0rc1/binaries/Ubuntu/opcua-MTServer-1.0.0-Linux.zip)
-
-Download [Windows Installation](https://raw.githubusercontent.com/mtconnect/open62541_ua_server/v1.0.0rc1/binaries/Windows/opcua-MTServer-1.0.0-win64.zip)
+MacOS, Ubuntu and Windows pre-built binaries are available. Check under location binaries.
