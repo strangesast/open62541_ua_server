@@ -33,7 +33,7 @@
 	- git checkout 1.0
 	- git submodule update --init --recursive
 	- mkdir build && cd build
-	- cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_NAMESPACE_ZERO=FULL ..
+	- cmake -DBUILD_SHARED_LIBS=FALSE -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_NAMESPACE_ZERO=FULL -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON ..
 	- make
 	- sudo make install
 
