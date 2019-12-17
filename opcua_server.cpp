@@ -96,6 +96,9 @@ int main(int argc, char** argv)
 
         Worker *worker = createWorker(server, topId, outputLocation, uri, poll);
 
+        if (worker == nullptr)
+            return -1;
+
         worker_pool.push_back(worker);
 
         bthread = new boost::thread(boost::bind(&Worker::run, worker));
@@ -141,6 +144,9 @@ int main(int argc, char** argv)
 
             Worker *worker = createWorker(server, topId, outputLocation, uri, poll);
 
+            if (worker == nullptr)
+                continue;
+
             worker_pool.push_back(worker);
 
             bthread = new boost::thread(boost::bind(&Worker::run, worker));
@@ -149,6 +155,9 @@ int main(int argc, char** argv)
         }
 
     }
+
+    if (worker_pool.size() == 0)
+        return -1;
 
     // settings.save(settingsName);
     UA_StatusCode retval = UA_Server_run(server, &running);
