@@ -38,4 +38,4 @@ Download [MacOS Installation](https://raw.githubusercontent.com/mtconnect/open62
 
 Download [Ubuntu Installation](https://raw.githubusercontent.com/mtconnect/open62541_ua_server/v1.0.0rc1/binaries/Ubuntu/opcua-MTServer-1.0.0-Linux.zip)
 
-Download [Windows Installation](https://raw.githubusercontent.com/mtconnect/open62541_ua_server/v1.0.0rc1/binaries/Windows/opcua-MTServer-1.0.0-win64.zip.zip)
+Download [Windows Installation](https://raw.githubusercontent.com/mtconnect/open62541_ua_server/v1.0.0rc1/binaries/Windows/opcua-MTServer-1.0.0-win64.zip)
