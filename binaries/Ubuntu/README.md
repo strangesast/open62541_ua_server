@@ -6,13 +6,12 @@
 	- apt install cmake
 	
 - Download and build openssl
-
-        - git clone https://github.com/openssl/openssl.git
-        - cd openssl
-        - git checkout OpenSSL_1_1_1-stable
-        - ./config
-        - make
-        - sudo make install
+	- git clone https://github.com/openssl/openssl.git
+	- cd openssl
+	- git checkout OpenSSL_1_1_1-stable
+	- ./config
+	- make
+	- sudo make install
 
 - Download and build boost
 	- wget https://dl.bintray.com/boostorg/release/1.71.0/source/boost_1_71_0.tar.gz
