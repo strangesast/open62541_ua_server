@@ -1,5 +1,5 @@
 PROJECT(opcua-MTServer)
-CMAKE_MINIMUM_REQUIRED(VERSION 3.10)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.11)
 
 include(cmake/open62541.cmake)
 
@@ -13,8 +13,6 @@ SET(Boost_NO_BOOST_CMAKE ON)
 
 IF (WIN32)
     SET(Boost_ARCHITECTURE          "-x64")
-    SET(open62541_INCLUDE_DIR               c:/open62541/include)
-    SET(open62541_LIBRARY               c:/open62541/lib/libopen62541.a)
 ELSEIF(APPLE)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden -fvisibility=hidden")
 ENDIF()

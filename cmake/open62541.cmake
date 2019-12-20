@@ -34,12 +34,10 @@ if(NOT TARGET Open62541::Open62541)
     FetchContent_Populate(open62541provider)
     
     message(STATUS "  * Configure open62541")
-    message(STATUS "  ===> ${open62541provider_BINARY_DIR}")
-    message(STATUS "  ===> ${open62541provider_SOURCE_DIR}")
     execute_process(
       COMMAND ${CMAKE_COMMAND}
       -DBUILD_SHARED_LIBS=FALSE
-      -DCMAKE_BUILD_TYPE=Release
+      -DCMAKE_BUILD_TYPE=RelWithDebInfo
       -DUA_NAMESPACE_ZERO=FULL
       -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON
       -DCMAKE_VERBOSE_MAKEFILE=${CMAKE_VERBOSE_MAKEFILE}
