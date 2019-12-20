@@ -1,6 +1,8 @@
 PROJECT(opcua-MTServer)
 CMAKE_MINIMUM_REQUIRED(VERSION 3.10)
 
+include(cmake/open62541.cmake)
+
 # Boost/openSSL/open62541 settings
 
 SET(Boost_USE_STATIC_LIBS       ON)  # only find static libs
