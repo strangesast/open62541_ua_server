@@ -7,6 +7,9 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/thread.hpp>
+#include <boost/chrono.hpp>
+
 
 #include <cstdio>
 #include <ctime>
@@ -27,6 +30,8 @@
 #include <sstream>
 
 namespace fs = boost::filesystem;
+
+static boost::mutex open62541_mutex;
 
 agentHandler::agentHandler()
 {
@@ -71,6 +76,7 @@ void agentHandler::processProbeInfo(string probeXml)
         return;
     }
 
+    open62541_mutex.lock();
     ptree& devices = probeInfo.get_child("MTConnectDevices.Devices");
     for (ptree::iterator pos = devices.begin(); pos != devices.end(); pos++)
     {
@@ -143,6 +149,8 @@ void agentHandler::processProbeInfo(string probeXml)
         UA_NodeId_deleteMembers(&deviceNodeId);
 //        m_settings.save(settingsName);
     }
+
+    open62541_mutex.unlock();
 }
 
 void agentHandler::processDeviceMetaInfo(string deviceUUID, UA_NodeId &parentNode, ptree &probeInfo, string path, vector<UA_NodeId> &nodePath)
@@ -755,7 +763,11 @@ bool agentHandler::processStreamData()
 
                     for (ptree::iterator s = stream.begin(); s != stream.end(); s++)
                         if (s->first.compare("<xmlattr>"))
+                        {
+                            open62541_mutex.lock();
                             rec_count += processDeviceStreamData(deviceName, deviceUUID, componentId, s->first, s->second);
+                            open62541_mutex.unlock();
+                        }
                 }
             }
         }
@@ -895,6 +907,7 @@ int agentHandler::processDeviceStreamData(const string &deviceName, const string
         else
             rec_count += processDeviceStreamData(deviceName, deviceUUID, componentId, pos->first, pos->second);
     }
+
 
     return rec_count;
 }
