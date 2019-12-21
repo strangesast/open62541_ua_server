@@ -29,7 +29,7 @@ or
 
 Example:  opcua-MTServer opcua.cfg
 
-opcua.cfg allows connections to multiple MTConnect Agents. Each line contains <agent's url> and its poll frequency in seconds.
+opcua.cfg allows connections to multiple MTConnect Agents. The file is a CSV file. Each line contains <agent's url> and its poll frequency in seconds.
 
 Binary Releases 
 -------
