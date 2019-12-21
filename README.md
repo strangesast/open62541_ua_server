@@ -18,6 +18,8 @@ Then run these commands:
 
 If build successful, **opcua-MTServer** should be generated in the current directory.
 
+Checkout **binaries/Windows/README.md** and **binaries/Ubuntu/README.md** for detailed instructions.
+
 Usage:
 
 - opcua-MTServer **[MTConnect Agent URL address] [poll cycle in seconds]**
@@ -34,4 +36,4 @@ opcua.cfg allows connections to multiple MTConnect Agents. The file is a CSV fil
 Binary Releases 
 -------
 
-MacOS, Ubuntu and Windows pre-built binaries are available. Check under location binaries.
+MacOS, Ubuntu, Raspberry PI 4 and Windows pre-built binaries are available. Check under location binaries.
