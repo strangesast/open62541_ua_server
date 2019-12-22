@@ -36,4 +36,4 @@ opcua.cfg allows connections to multiple MTConnect Agents. The file is a CSV fil
 Binary Releases 
 -------
 
-MacOS, Ubuntu, Raspberry PI 4 and Windows pre-built binaries are available. Check under location binaries.
+MacOS, Ubuntu, Raspberry PI 4 and Windows pre-built binaries are available under the release tab.
