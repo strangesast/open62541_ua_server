@@ -36,7 +36,7 @@ opcua.cfg allows connections to multiple MTConnect Agents. The file is a CSV fil
 Binary Releases 
 -------
 
-MacOS, Ubuntu, Raspberry PI 4 and Windows pre-built binaries are available:
+Windows, Ubuntu, MacOS and Raspberry PI 4 pre-built binaries are available:
 
 Windows: [opcua-MTServer-1.0.0-win32.zip](https://github.com/mtconnect/open62541_ua_server/files/3993033/opcua-MTServer-1.0.0-win32.zip)
 
