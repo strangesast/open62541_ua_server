@@ -735,9 +735,9 @@ bool agentHandler::parseStreamData(string xmlText)
     return true;
 }
 
-bool agentHandler::processStreamData()
+int agentHandler::processStreamData()
 {
-    bool ret = true;
+    int total = 0;
 
     try {
 
@@ -770,16 +770,17 @@ bool agentHandler::processStreamData()
                         }
                 }
             }
+
+            total += rec_count;
         }
     }
     catch (exception& e)
     {
         cerr << e.what() << endl;
         cerr << m_xml << endl;
-        ret = false;
     }
 
-    return ret;
+    return total;
 }
 
 int agentHandler::processDeviceStreamData(const string &deviceName, const string &deviceUUID, const string &componentId, const string &levelName, ptree &pt)
@@ -797,6 +798,8 @@ int agentHandler::processDeviceStreamData(const string &deviceName, const string
             string key = deviceUUID + "." + dataItemId;
 
             string dataPoint = pos->second.data();
+
+            rec_count++;
 
             if (levelName.compare("Condition") == 0)
             {

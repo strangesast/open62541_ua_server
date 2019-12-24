@@ -71,7 +71,7 @@ public:
     void setup(UA_Server *uaServer, UA_NodeId topNode, int ns);
     void processProbeInfo(string probeXml);
     bool parseStreamData(string xmlText);
-    bool processStreamData();
+    int processStreamData();
 
     string getJSON_data(string path) { return util::getJSON_data(m_ptree, path); }
 };

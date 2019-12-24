@@ -1,4 +1,4 @@
-#include <stdlib.h>
+﻿#include <stdlib.h>
 #include <open62541/server.h>
 
 #include <boost/date_time/posix_time/posix_time.hpp>
@@ -75,10 +75,10 @@ void Worker::poll()
 {
     m_poll_count++;
 
-//    if (m_next_sequence.length() == 0)
+    if (m_next_sequence.length() == 0)
         m_reader.setQuery("/current");
-//    else
-//        m_reader.setQuery("/sample?count=10000&from="+m_next_sequence);
+    else
+        m_reader.setQuery("/sample?count=10000&from="+m_next_sequence);
 
     string xmlData = m_reader.read();
 
@@ -101,19 +101,19 @@ void Worker::poll()
     string sequence = m_handler.getJSON_data("MTConnectStreams.Header.<xmlattr>.nextSequence");
     if (sequence.compare(m_next_sequence) == 0)
     {
-        std::cout << "========== { " << m_uri << " - "<< m_poll_count << ", [SKIPPED] next sequence = " << m_next_sequence << " } ==========" << std::endl;
+        std::cout << "========== { " << m_uri << " [round: "<< m_poll_count << "] process items = 0, next sequence = " << m_next_sequence << " } ==========" << std::endl;
         return;
     }
 
     if (sequence.length() == 0)
     {
         // last next_sequence may be invalid, reset to using "current" to fetch the latest data
-        std::cout << "========== { " << m_uri << " - "<< m_poll_count << ", [SKIPPED] reset to fetch current data } ==========" << std::endl;
+        std::cout << "========== { " << m_uri << " [round: "<< m_poll_count << "] BAD sequence number, reset to fetch current data } ==========" << std::endl;
         return;
     }
 
-    m_handler.processStreamData();
+    int processCount = m_handler.processStreamData();
     m_next_sequence = sequence;
-    std::cout << "========== { " << m_uri << " - updated " << m_poll_count << ", next sequence = " << m_next_sequence << " } ==========" << std::endl;
+    std::cout << "========== { " << m_uri << " [round: " << m_poll_count << "] processed items = " << processCount << ", next sequence = " << m_next_sequence << " } ==========" << std::endl;
 }
 
